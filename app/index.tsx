@@ -43,6 +43,7 @@ export default function AuthScreen() {
   const [signupEmail, setSignupEmail] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -124,6 +125,10 @@ export default function AuthScreen() {
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
+      return;
+    }
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms & Conditions and Privacy Policy to create your account.');
       return;
     }
 
@@ -210,8 +215,14 @@ export default function AuthScreen() {
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Theme.colors.ink.primary} />
-        <Text style={styles.loadingText}>Loading EDURAIN...</Text>
+        <Image
+          source={require('../assets/images/logo.png')}
+          style={styles.loadingLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.loadingBrandTitle}>EDURAIN</Text>
+        <Text style={styles.loadingBrandSubtitle}>Empowering Aspirations With Precision Learning</Text>
+        <ActivityIndicator size="large" color={Theme.colors.ink.primary} style={{ marginTop: 24 }} />
       </View>
     );
   }
@@ -227,9 +238,11 @@ export default function AuthScreen() {
       >
         {/* Brand Header */}
         <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="school" size={28} color="#FFFFFF" />
-          </View>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={styles.brandLogoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.brandTitle}>EDURAIN</Text>
           <Text style={styles.brandSubtitle}>Empowering Aspirations With Precision Learning</Text>
         </View>
@@ -400,10 +413,37 @@ export default function AuthScreen() {
                 />
               </View>
 
+              {/* Mandatory Terms & Conditions / Privacy Checkbox */}
               <TouchableOpacity
-                style={styles.submitBtn}
+                style={styles.checkboxContainer}
+                activeOpacity={0.8}
+                onPress={() => setAgreedToTerms(!agreedToTerms)}
+              >
+                <View style={[styles.checkboxBox, agreedToTerms && styles.checkboxBoxActive]}>
+                  {agreedToTerms && <Feather name="check" size={13} color="#FFFFFF" />}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  I agree to the{' '}
+                  <Text
+                    style={styles.legalLink}
+                    onPress={() => router.push('/terms' as any)}
+                  >
+                    Terms & Conditions
+                  </Text>{' '}
+                  and{' '}
+                  <Text
+                    style={styles.legalLink}
+                    onPress={() => router.push('/privacy' as any)}
+                  >
+                    Privacy Policy
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.submitBtn, !agreedToTerms && styles.submitBtnDisabled]}
                 onPress={handleSignupInitiate}
-                disabled={loading}
+                disabled={loading || !agreedToTerms}
                 activeOpacity={0.85}
               >
                 {loading ? (
@@ -456,10 +496,22 @@ export default function AuthScreen() {
           )}
         </View>
 
-        {/* Footer Note */}
-        <Text style={styles.footerText}>
-          By continuing, you agree to EduRain's Terms of Service and Privacy Policy.
-        </Text>
+        {/* Footer Note with Direct Legal Links */}
+        <View style={styles.footerWrap}>
+          <Text style={styles.footerText}>
+            By continuing, you agree to EDURAIN's{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/terms' as any)}>
+              Terms of Service
+            </Text>{' '}
+            &{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/privacy' as any)}>
+              Privacy Policy
+            </Text>
+          </Text>
+          <Text style={styles.footerSubText}>
+            Helpline: +91 8796443910 • support@edurain.in{'\n'}Sector 132, Urbtech, Expressway, Noida
+          </Text>
+        </View>
       </ScrollView>
 
       {/* MSG91 OTP Widget */}
@@ -553,9 +605,28 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: Theme.colors.paper.light,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingLogo: {
+    width: 90,
+    height: 90,
+    marginBottom: 16,
+  },
+  loadingBrandTitle: {
+    fontSize: 24,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+    letterSpacing: 1.2,
+  },
+  loadingBrandSubtitle: {
+    fontSize: 13,
+    fontFamily: Theme.fonts.medium,
+    color: '#4B6B70',
+    textAlign: 'center',
+    marginTop: 4,
   },
   loadingText: {
     marginTop: 12,
@@ -566,6 +637,11 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
+  },
+  brandLogoImage: {
+    width: 72,
+    height: 72,
+    marginBottom: 12,
   },
   logoBadge: {
     width: 64,
@@ -698,6 +774,40 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.medium,
     color: Theme.colors.ink.primary,
   },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxBoxActive: {
+    backgroundColor: '#0B3B42',
+    borderColor: '#0B3B42',
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Theme.fonts.regular,
+    color: '#475569',
+    lineHeight: 18,
+  },
+  legalLink: {
+    fontFamily: Theme.fonts.bold,
+    color: '#175A67',
+    textDecorationLine: 'underline',
+  },
   submitBtn: {
     backgroundColor: Theme.colors.ink.primary,
     borderRadius: 14,
@@ -710,6 +820,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 4,
+  },
+  submitBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    opacity: 0.7,
   },
   submitBtnText: {
     fontSize: 15,
@@ -725,14 +839,30 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.medium,
     color: Theme.colors.ink.primary,
   },
+  footerWrap: {
+    marginTop: 20,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
   footerText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontFamily: Theme.fonts.regular,
     color: Theme.colors.text.muted,
     textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 16,
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  footerLink: {
+    fontFamily: Theme.fonts.bold,
+    color: '#175A67',
+    textDecorationLine: 'underline',
+  },
+  footerSubText: {
+    fontSize: 10.5,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 15,
   },
   // Modal
   modalOverlay: {

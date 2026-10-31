@@ -44,3 +44,4 @@ export async function fetchCategories(): Promise<Category[]> {
     ];
   }
 }
+

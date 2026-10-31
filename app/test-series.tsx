@@ -674,3 +674,4 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.bold,
   },
 });
+

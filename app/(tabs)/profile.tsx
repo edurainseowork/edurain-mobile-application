@@ -10,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -457,6 +458,59 @@ export default function ProfileScreen() {
             )}
           </View>
 
+          {/* Legal Policies & Support Section */}
+          <Text style={styles.sectionHeader}>Legal & Support</Text>
+          <View style={styles.legalCard}>
+            <TouchableOpacity
+              style={styles.legalItem}
+              onPress={() => router.push('/terms' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.legalItemLeft}>
+                <Feather name="file-text" size={17} color="#0B3B42" />
+                <Text style={styles.legalItemText}>Terms & Conditions</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <View style={styles.legalDivider} />
+
+            <TouchableOpacity
+              style={styles.legalItem}
+              onPress={() => router.push('/privacy' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.legalItemLeft}>
+                <Feather name="shield" size={17} color="#0B3B42" />
+                <Text style={styles.legalItemText}>Privacy Policy</Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <View style={styles.legalDivider} />
+
+            <View style={styles.supportInfoBlock}>
+              <Text style={styles.supportLabel}>Official Contact & Support</Text>
+              <TouchableOpacity
+                onPress={() => Linking.openURL('tel:+918796443910')}
+                style={styles.supportRow}
+              >
+                <Feather name="phone" size={13} color="#175A67" />
+                <Text style={styles.supportLink}>Helpline: +91 8796443910</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => Linking.openURL('mailto:support@edurain.in')}
+                style={styles.supportRow}
+              >
+                <Feather name="mail" size={13} color="#175A67" />
+                <Text style={styles.supportLink}>Email: support@edurain.in</Text>
+              </TouchableOpacity>
+              <Text style={styles.supportAddress}>
+                Sector 132, Urbtech, Expressway, Noida, Gautam Buddha Nagar, Uttar Pradesh - 201304, India
+              </Text>
+            </View>
+          </View>
+
           {/* Account Actions */}
           <View style={styles.actionSection}>
             <TouchableOpacity
@@ -795,6 +849,67 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontFamily: Theme.fonts.bold,
+  },
+  legalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  legalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  legalItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  legalItemText: {
+    fontSize: 14,
+    fontFamily: Theme.fonts.semiBold,
+    color: '#0F172A',
+  },
+  legalDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 4,
+  },
+  supportInfoBlock: {
+    marginTop: 10,
+    paddingTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+  },
+  supportLabel: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+    marginBottom: 6,
+  },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 3,
+  },
+  supportLink: {
+    fontSize: 12.5,
+    fontFamily: Theme.fonts.medium,
+    color: '#175A67',
+    textDecorationLine: 'underline',
+  },
+  supportAddress: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+    lineHeight: 15,
+    marginTop: 6,
   },
   actionSection: {
     gap: 12,

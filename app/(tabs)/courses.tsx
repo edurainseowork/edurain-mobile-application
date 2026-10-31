@@ -20,6 +20,7 @@ import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
 import { fetchCourses, fetchCategories, Course, Category } from '../../api/courses';
 import { createRazorpayOrder, verifyRazorpayPayment, verifyGooglePlayPurchase, verifyAppleIapPurchase } from '../../api/payments';
+import { AppHeader } from '../../components/Home/AppHeader';
 
 export default function CoursesScreen() {
   const insets = useSafeAreaInsets();
@@ -195,6 +196,7 @@ export default function CoursesScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      <AppHeader />
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Academic Batches</Text>

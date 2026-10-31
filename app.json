@@ -8,17 +8,32 @@
     "icon": "./assets/images/icon.png",
     "scheme": "edurain",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.edurainindia.app",
+      "splash": {
+        "image": "./assets/images/logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFFFF"
+      },
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Allow EDURAIN to access your photo library to set your profile picture.",
-        "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture.",
+        "NSPhotoLibraryUsageDescription": "Allow EDURAIN to access your photo library to set your profile picture and upload study doubt images.",
+        "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture and capture doubt problems.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.edurainindia.app",
+      "splash": {
+        "image": "./assets/images/logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FFFFFF"
+      },
       "permissions": [
         "POST_NOTIFICATIONS",
         "CAMERA",

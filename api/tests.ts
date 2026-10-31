@@ -40,3 +40,4 @@ export async function fetchStudentTests(courseId?: number): Promise<StudentTest[
     return [];
   }
 }
+

@@ -25,3 +25,4 @@ export async function fetchEBooks(courseId?: number | string): Promise<EBookItem
     return [];
   }
 }
+
