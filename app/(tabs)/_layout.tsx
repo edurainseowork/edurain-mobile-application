@@ -32,28 +32,28 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color as string} />,
         }}
       />
       <Tabs.Screen
         name="courses"
         options={{
           title: 'Courses',
-          tabBarIcon: ({ color, size }) => <Feather name="book-open" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="book-open" size={size} color={color as string} />,
         }}
       />
       <Tabs.Screen
         name="library"
         options={{
           title: 'Library',
-          tabBarIcon: ({ color, size }) => <Feather name="bookmark" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="bookmark" size={size} color={color as string} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color as string} />,
         }}
       />
     </Tabs>

@@ -50,35 +50,27 @@ export default function AuthScreen() {
   // MSG91 OTP Widget State
   const [isOtpWidgetOpen, setIsOtpWidgetOpen] = useState(false);
 
-  // Cohort Goal Modal State (for first-time student onboarding)
+  // Cohort Goal Modal State (for first-time student onboarding after SIGNUP only)
+  const [isJustSignedUp, setIsJustSignedUp] = useState(false);
   const [isCohortModalOpen, setIsCohortModalOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCohort, setSelectedCohort] = useState<string | null>(null);
 
-  // 1. Smart Landing Router
+  // 1. Smart Landing Router for authenticated users
   useEffect(() => {
     if (!isReady || !user) return;
+    // If the student just signed up, wait for them to confirm or skip the target selection modal
+    if (isJustSignedUp) return;
 
-    if (!goal) {
-      // First-time student without goal: open cohort selection modal
-      fetchCategories()
-        .then((cats) => {
-          setCategories(cats);
-          setIsCohortModalOpen(true);
-        })
-        .catch(() => setIsCohortModalOpen(true));
-      return;
-    }
-
-    // Returning student:
-    // If unenrolled -> navigate to courses
+    // Returning / Logged in student: NEVER show target selection modal
     // If enrolled -> navigate to home
-    if (enrolledIds.length === 0) {
-      router.replace('/(tabs)/courses');
-    } else {
+    // If unenrolled -> navigate to courses
+    if (enrolledIds.length > 0) {
       router.replace('/(tabs)/home');
+    } else {
+      router.replace('/(tabs)/courses');
     }
-  }, [isReady, user, goal, enrolledIds.length]);
+  }, [isReady, user, isJustSignedUp, enrolledIds.length]);
 
   const handleLoginSubmit = async () => {
     setError(null);
@@ -96,7 +88,17 @@ export default function AuthScreen() {
     const res = await login(identifier, password);
     setLoading(false);
 
-    if (!res.ok) {
+    if (res.ok) {
+      // Existing login user: NEVER open target selection modal
+      setIsJustSignedUp(false);
+      setIsCohortModalOpen(false);
+      const count = res.enrolledCount ?? enrolledIds.length;
+      if (count > 0) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/(tabs)/courses');
+      }
+    } else {
       setError(res.error || 'Login failed. Please check credentials.');
     }
   };
@@ -147,7 +149,22 @@ export default function AuthScreen() {
     });
     setLoading(false);
 
-    if (!res.ok) {
+    if (res.ok) {
+      // New signup confirmed! Now and only now show target selection modal
+      setIsJustSignedUp(true);
+      fetchCategories()
+        .then((cats) => {
+          setCategories(cats);
+          if (cats.length > 0) {
+            setSelectedCohort(cats[0].name);
+          }
+          setIsCohortModalOpen(true);
+        })
+        .catch(() => {
+          setSelectedCohort('NEET');
+          setIsCohortModalOpen(true);
+        });
+    } else {
       setError(res.error || 'Account creation failed. Please try again.');
     }
   };
@@ -174,11 +191,14 @@ export default function AuthScreen() {
   const handleConfirmCohort = async () => {
     if (!selectedCohort) return;
     setLoading(true);
+    setError(null);
     try {
-      const match = categories.find((c) => c.name === selectedCohort);
+      const match = categories.find(
+        (c) => c.name.toLowerCase() === selectedCohort.toLowerCase()
+      );
       await setGoal(selectedCohort, match?.id ?? null);
       setIsCohortModalOpen(false);
-      // As requested: first time login goes directly to courses!
+      // First-time signed up student navigates to courses to enroll!
       router.replace('/(tabs)/courses');
     } catch {
       setError('Could not save goal preference.');
@@ -504,6 +524,16 @@ export default function AuthScreen() {
                 <Text style={styles.confirmCohortBtnText}>Confirm Target & Explore Courses</Text>
               )}
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.skipCohortBtn}
+              onPress={() => {
+                setIsCohortModalOpen(false);
+                router.replace('/(tabs)/courses');
+              }}
+            >
+              <Text style={styles.skipCohortBtnText}>Skip for now</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -787,6 +817,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Theme.fonts.bold,
     color: '#FFFFFF',
+  },
+  skipCohortBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  skipCohortBtnText: {
+    fontSize: 13,
+    fontFamily: Theme.fonts.medium,
+    color: Theme.colors.text.muted,
   },
 });
 

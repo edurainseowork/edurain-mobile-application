@@ -87,19 +87,58 @@ export async function fetchBanners(): Promise<Banner[]> {
 
 export async function fetchStudentGoal(): Promise<StudentGoal | null> {
   try {
-    const res = await apiFetch<{ success: boolean; data: StudentGoal | null }>('/api/me/goal');
-    return res?.data ?? null;
-  } catch {
-    return null;
-  }
+    const res = await apiFetch<{
+      success: boolean;
+      goal?: { id: number; name: string } | null;
+      data?: StudentGoal | null;
+    }>('/api/me/goal');
+    if (res?.goal) {
+      const g: StudentGoal = { id: res.goal.id, name: res.goal.name };
+      await AsyncStorage.setItem('edurain_student_goal', JSON.stringify(g));
+      return g;
+    }
+    if (res?.data) {
+      await AsyncStorage.setItem('edurain_student_goal', JSON.stringify(res.data));
+      return res.data;
+    }
+  } catch {}
+
+  try {
+    const cached = await AsyncStorage.getItem('edurain_student_goal');
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  return null;
 }
 
 export async function saveStudentGoal(categoryName: string, categoryId?: number | null): Promise<StudentGoal> {
-  const res = await apiFetch<{ success: boolean; data: StudentGoal }>('/api/me/goal', {
-    method: 'PUT',
-    body: JSON.stringify({ name: categoryName, id: categoryId ?? null }),
-  });
-  return res.data;
+  let targetId = categoryId;
+  if (!targetId) {
+    try {
+      const cats = await fetchCategories();
+      const match = cats.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
+      if (match) targetId = match.id;
+    } catch {}
+  }
+
+  if (targetId) {
+    try {
+      const res = await apiFetch<{ success: boolean; goal?: { id: number; name: string } }>('/api/me/goal', {
+        method: 'PUT',
+        body: JSON.stringify({ categoryId: targetId }),
+      });
+      if (res?.goal) {
+        const g: StudentGoal = { id: res.goal.id, name: res.goal.name };
+        await AsyncStorage.setItem('edurain_student_goal', JSON.stringify(g));
+        return g;
+      }
+    } catch (err) {
+      console.warn('[saveStudentGoal] Remote save failed, falling back to local storage:', err);
+    }
+  }
+
+  const fallback: StudentGoal = { id: targetId ?? null, name: categoryName };
+  await AsyncStorage.setItem('edurain_student_goal', JSON.stringify(fallback));
+  return fallback;
 }
 
 export async function fetchActiveCourse(): Promise<Course | null> {

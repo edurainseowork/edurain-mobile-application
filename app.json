@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.edurainindia.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow EDURAIN to access your photo library to set your profile picture.",
-        "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture."
+        "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

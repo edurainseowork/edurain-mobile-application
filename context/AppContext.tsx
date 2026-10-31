@@ -41,7 +41,7 @@ interface AppContextValue {
   isEnrolled: (courseId: number) => boolean;
   setGoal: (name: string, id?: number | null) => Promise<StudentGoal>;
   selectActiveCourse: (courseId: number) => Promise<void>;
-  login: (emailOrPhone: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  login: (emailOrPhone: string, password: string) => Promise<{ ok: boolean; enrolledCount?: number; error?: string }>;
   verifyOtpAndSignup: (params: {
     name: string;
     email: string;
@@ -158,7 +158,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 4. Login flow: resolves 10-digit phone number to email if needed
   const login = useCallback(
-    async (emailOrPhone: string, password: string): Promise<{ ok: boolean; error?: string }> => {
+    async (emailOrPhone: string, password: string): Promise<{ ok: boolean; enrolledCount?: number; error?: string }> => {
       try {
         const trimmed = emailOrPhone.trim().toLowerCase();
         let targetEmail = trimmed;
@@ -177,7 +177,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         await signInWithEmailAndPassword(auth, targetEmail, password);
         await refreshUserData();
-        return { ok: true };
+        const ids = await fetchEnrolledCourseIds().catch(() => []);
+        return { ok: true, enrolledCount: ids.length };
       } catch (err: any) {
         let msg = err.message || 'Login failed';
         if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
