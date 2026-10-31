@@ -20,6 +20,7 @@ import { fetchCategories, Category } from '../../api/goal';
 import { fetchNotifications } from '../../api/notifications';
 
 interface AppHeaderProps {
+  showSearch?: boolean;
   onSearchPress?: () => void;
   onNotificationsPress?: () => void;
   onProfilePress?: () => void;
@@ -29,6 +30,7 @@ interface AppHeaderProps {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export function AppHeader({
+  showSearch = true,
   onSearchPress,
   onNotificationsPress,
   onProfilePress,
@@ -41,7 +43,7 @@ export function AppHeader({
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCat, setSelectedCat] = useState<Category | null>(null);
   const [savingGoal, setSavingGoal] = useState(false);
-  const [hasUnread, setHasUnread] = useState(true);
+  const [hasUnread, setHasUnread] = useState(false);
 
   const cohortName = goal?.name?.toUpperCase() || 'NEET';
 
@@ -62,12 +64,12 @@ export function AppHeader({
         setCategories(fallbacks);
         setSelectedCat(fallbacks[1]);
       }
-    });
+    }).catch(() => {});
 
     fetchNotifications().then((notifs) => {
       const unread = notifs.some((n) => !n.isRead);
-      setHasUnread(unread || notifs.length > 0);
-    });
+      setHasUnread(unread);
+    }).catch(() => {});
   }, [goal]);
 
   useEffect(() => {
@@ -76,11 +78,11 @@ export function AppHeader({
       fetchNotifications().then((notifs) => {
         if (!active) return;
         const unread = notifs.some((n) => !n.isRead);
-        setHasUnread(unread || notifs.length > 0);
+        setHasUnread(unread);
       }).catch(() => {});
     };
     checkNotifs();
-    const interval = setInterval(checkNotifs, 12000);
+    const interval = setInterval(checkNotifs, 10000);
     return () => {
       active = false;
       clearInterval(interval);
@@ -178,13 +180,15 @@ export function AppHeader({
 
         {/* Right Actions: Search + Bell with Red Dot + Student Avatar */}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={onSearchPress || (() => router.push('/(tabs)/courses'))}
-            activeOpacity={0.7}
-          >
-            <Feather name="search" size={20} color="#0B3B42" />
-          </TouchableOpacity>
+          {showSearch && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={onSearchPress || (() => router.push('/(tabs)/courses'))}
+              activeOpacity={0.7}
+            >
+              <Feather name="search" size={20} color="#0B3B42" />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.actionBtn}
@@ -192,7 +196,9 @@ export function AppHeader({
             activeOpacity={0.7}
           >
             <Feather name="bell" size={20} color="#0B3B42" />
-            {hasUnread && <View style={styles.redDot} />}
+            {(unreadCount !== undefined ? unreadCount > 0 : hasUnread) && (
+              <View style={styles.redDot} />
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -250,7 +256,7 @@ export function AppHeader({
               </TouchableOpacity>
             </View>
 
-            {/* Student Profile Card */}
+            {/* Student Profile Card (SS2) */}
             <TouchableOpacity
               style={styles.drawerProfileCard}
               activeOpacity={0.85}
@@ -276,76 +282,32 @@ export function AppHeader({
               </View>
             </TouchableOpacity>
 
-            {/* Scrollable Navigation */}
+            {/* Scrollable Navigation - Visible Scrollbar & Cleaned Items */}
             <ScrollView
               style={styles.drawerScroll}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
               contentContainerStyle={styles.drawerScrollContent}
             >
               <Text style={styles.drawerSectionLabel}>ACADEMIC LEARNING</Text>
 
+              {/* 1. My Purchases */}
               <TouchableOpacity
                 style={styles.drawerItem}
                 onPress={() => navigateFromDrawer('/(tabs)/courses')}
+                activeOpacity={0.7}
               >
-                <Feather name="book-open" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>My Batches & Courses</Text>
+                <Feather name="shopping-bag" size={18} color="#175A67" />
+                <Text style={styles.drawerItemText}>My Purchases & Batches</Text>
               </TouchableOpacity>
 
+              {/* 2. My Profile */}
               <TouchableOpacity
                 style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/doubt')}
+                onPress={() => navigateFromDrawer('/profile')}
+                activeOpacity={0.7}
               >
-                <Feather name="help-circle" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>Ask Your Doubt (24x7)</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/test-series')}
-              >
-                <Feather name="clipboard" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>Course Test Series</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/bookmarks')}
-              >
-                <Feather name="bookmark" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>Saved Bookmarks & Notes</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/ebooks')}
-              >
-                <Feather name="book" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>Digital E-Books Library</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/mentorship')}
-              >
-                <Feather name="users" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>1-on-1 Mentorship</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/(tabs)/test-pass')}
-              >
-                <Feather name="award" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>All India Test Pass</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/(tabs)/daily-drop')}
-              >
-                <Feather name="zap" size={18} color="#175A67" />
-                <Text style={styles.drawerItemText}>Daily Drop Quizzes</Text>
+                <Feather name="user" size={18} color="#175A67" />
+                <Text style={styles.drawerItemText}>My Profile</Text>
               </TouchableOpacity>
 
               {/* Target Switcher */}
@@ -355,6 +317,7 @@ export function AppHeader({
                   setDrawerVisible(false);
                   setModalVisible(true);
                 }}
+                activeOpacity={0.7}
               >
                 <Feather name="target" size={18} color="#0B3B42" />
                 <Text style={styles.drawerItemTextBold}>Switch Target ({cohortName})</Text>
@@ -367,6 +330,7 @@ export function AppHeader({
               <TouchableOpacity
                 style={styles.drawerItem}
                 onPress={() => navigateFromDrawer('/terms')}
+                activeOpacity={0.7}
               >
                 <Feather name="file-text" size={18} color="#475569" />
                 <Text style={styles.drawerItemText}>Terms & Conditions</Text>
@@ -375,6 +339,7 @@ export function AppHeader({
               <TouchableOpacity
                 style={styles.drawerItem}
                 onPress={() => navigateFromDrawer('/privacy')}
+                activeOpacity={0.7}
               >
                 <Feather name="shield" size={18} color="#475569" />
                 <Text style={styles.drawerItemText}>Privacy Policy</Text>
@@ -382,14 +347,14 @@ export function AppHeader({
 
               <View style={styles.drawerDivider} />
 
-              {/* Support & Address Card */}
+              {/* Help & Support Card */}
               <View style={styles.supportBox}>
                 <Text style={styles.supportTitle}>Official Helpline & Support</Text>
-                <TouchableOpacity onPress={handleHelplineCall} style={styles.supportRow}>
+                <TouchableOpacity onPress={handleHelplineCall} style={styles.supportRow} activeOpacity={0.7}>
                   <Feather name="phone-call" size={14} color="#175A67" />
                   <Text style={styles.supportLink}>+91 8796443910</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleSupportEmail} style={styles.supportRow}>
+                <TouchableOpacity onPress={handleSupportEmail} style={styles.supportRow} activeOpacity={0.7}>
                   <Feather name="mail" size={14} color="#175A67" />
                   <Text style={styles.supportLink}>support@edurain.in</Text>
                 </TouchableOpacity>

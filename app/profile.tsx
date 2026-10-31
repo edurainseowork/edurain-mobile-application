@@ -23,6 +23,7 @@ import {
   fetchProfile,
   updateProfile,
   uploadProfilePhoto,
+  removeProfilePhoto,
   StudentProfile,
 } from '../api/profile';
 
@@ -134,6 +135,27 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleRemovePhoto = async () => {
+    Alert.alert('Remove Photo', 'Are you sure you want to remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          setUploadingPhoto(true);
+          try {
+            await removeProfilePhoto();
+            setProfile((prev) => (prev ? { ...prev, profilePhoto: null } : null));
+            await refreshUserData();
+            Alert.alert('Success', 'Profile photo removed.');
+          } finally {
+            setUploadingPhoto(false);
+          }
+        },
+      },
+    ]);
+  };
+
   const handleSaveProfile = async () => {
     if (!name.trim()) {
       Alert.alert('Validation Error', 'Name cannot be empty.');
@@ -240,16 +262,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {/* Top Navigation Bar: < Settings > Account Profile */}
+      {/* Top Navigation Bar: Back Button + Title (No Breadcrumbs) */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backBtnRow}
+          style={styles.backBtn}
           onPress={() => router.back()}
           activeOpacity={0.7}
         >
-          <Feather name="chevron-left" size={20} color="#0B3B42" />
-          <Text style={styles.backBreadcrumb}>Settings  ›  Account Profile</Text>
+          <Feather name="arrow-left" size={22} color="#0B3B42" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Student Profile & Preferences</Text>
       </View>
 
       {loading ? (
@@ -272,9 +294,6 @@ export default function ProfileScreen() {
             />
           }
         >
-          {/* Main Title */}
-          <Text style={styles.pageTitle}>Student Profile & Preferences</Text>
-
           {/* Card 1: Top Hero Profile Card */}
           <View style={styles.heroCard}>
             <View style={styles.heroRow}>
@@ -318,7 +337,28 @@ export default function ProfileScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.memberSinceText}>Member since Oct 2026</Text>
+                <View style={styles.memberRow}>
+                  <Text style={styles.memberSinceText}>
+                    {profile?.memberSince ? `Member since ${profile.memberSince}` : 'Member since Oct 2026'}
+                  </Text>
+                  {Boolean(profile?.profilePhoto || user?.photo) && (
+                    <TouchableOpacity
+                      style={styles.removePhotoBtn}
+                      onPress={handleRemovePhoto}
+                      activeOpacity={0.7}
+                    >
+                      <Feather name="trash-2" size={11} color="#EF4444" />
+                      <Text style={styles.removePhotoText}>Remove photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.heroEnrolledRow}>
+                  <Feather name="briefcase" size={12} color="#64748B" />
+                  <Text style={styles.heroEnrolledText} numberOfLines={1}>
+                    Enrolled: {enrolledCourseList.slice(0, 3).join(', ')}...
+                  </Text>
+                </View>
 
                 <TouchableOpacity
                   style={styles.editProfileBtn}
@@ -751,17 +791,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#EAF0EC',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#EAF0EC',
-  },
-  backBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#EAF0EC',
+    gap: 12,
   },
-  backBreadcrumb: {
-    fontSize: 13,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontFamily: Theme.fonts.bold,
     color: '#0B3B42',
   },
@@ -871,12 +922,44 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.bold,
     color: '#FFFFFF',
   },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
   memberSinceText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
-    marginTop: 2,
+  },
+  removePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+  },
+  removePhotoText: {
+    fontSize: 10,
+    fontFamily: Theme.fonts.bold,
+    color: '#EF4444',
+  },
+  heroEnrolledRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     marginBottom: 8,
+  },
+  heroEnrolledText: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+    flex: 1,
   },
   editProfileBtn: {
     flexDirection: 'row',
@@ -1358,3 +1441,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+

@@ -110,13 +110,12 @@ export default function AiTutorScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* App Header */}
       <AppHeader
-        unreadCount={0}
         onSearchPress={() => router.push('/(tabs)/courses')}
-        onNotificationsPress={() => router.push('/(tabs)/profile')}
-        onProfilePress={() => router.push('/(tabs)/profile')}
+        onNotificationsPress={() => router.push('/notifications' as any)}
+        onProfilePress={() => router.push('/profile' as any)}
       />
 
-      {/* Breadcrumb Navigation */}
+      {/* Clean Screen Header (No Breadcrumbs) */}
       <View style={styles.breadcrumbBar}>
         <TouchableOpacity
           style={styles.backButton}
@@ -125,19 +124,7 @@ export default function AiTutorScreen() {
         >
           <Feather name="arrow-left" size={18} color="#0F3C45" />
         </TouchableOpacity>
-
-        <View style={styles.breadcrumbWrap}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/home')} style={styles.breadItem}>
-            <Feather name="home" size={13} color="#0D9488" />
-            <Text style={styles.breadTextLink}>Home</Text>
-          </TouchableOpacity>
-          <Feather name="chevron-right" size={12} color="#94A3B8" />
-          <Text style={styles.breadTextMuted}>Features</Text>
-          <Feather name="chevron-right" size={12} color="#94A3B8" />
-          <View style={styles.breadActiveBadge}>
-            <Text style={styles.breadActiveText}>EduAI Tutor</Text>
-          </View>
-        </View>
+        <Text style={styles.screenHeaderTitle}>EduAI Tutor</Text>
       </View>
 
       {/* Page Title & Quota */}
@@ -266,7 +253,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    gap: 8,
+    gap: 10,
+  },
+  screenHeaderTitle: {
+    fontSize: 16,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
   },
   backButton: {
     width: 34,

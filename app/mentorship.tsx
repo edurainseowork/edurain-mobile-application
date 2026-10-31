@@ -123,8 +123,8 @@ export default function MentorshipScreen() {
       {/* Top Header */}
       <AppHeader
         onSearchPress={() => {}}
-        onNotificationsPress={() => router.push('/(tabs)/profile')}
-        onProfilePress={() => router.push('/(tabs)/profile')}
+        onNotificationsPress={() => router.push('/notifications' as any)}
+        onProfilePress={() => router.push('/profile' as any)}
       />
 
       <ScrollView

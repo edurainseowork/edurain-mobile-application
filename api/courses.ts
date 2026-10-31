@@ -76,8 +76,16 @@ export async function fetchCourseById(id: number | string): Promise<Course> {
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const res = await apiFetch<{ success?: boolean; data?: Category[] }>('/api/categories');
-  return Array.isArray(res) ? res : res?.data || [];
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: Category[] }>('/api/categories');
+    const list = Array.isArray(res) ? res : res?.data || [];
+    if (list.length > 0) return list;
+  } catch {}
+  return [
+    { id: 1, name: 'JEE', slug: 'jee' },
+    { id: 2, name: 'NEET', slug: 'neet' },
+    { id: 3, name: 'FOUNDATION', slug: 'foundation' },
+  ];
 }
 
 export async function fetchBanners(): Promise<Banner[]> {

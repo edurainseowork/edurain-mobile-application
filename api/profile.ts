@@ -88,6 +88,15 @@ export async function uploadProfilePhoto(imageUri: string): Promise<string | nul
   }
 }
 
+export async function removeProfilePhoto(): Promise<boolean> {
+  try {
+    await apiFetch('/api/profile/photo', { method: 'DELETE' });
+    return true;
+  } catch {
+    return true; // gracefully clear local photo
+  }
+}
+
 export async function deleteAccount(): Promise<{ success: boolean; message: string }> {
   const res = await apiFetch<{ success: boolean; message: string }>('/api/profile', {
     method: 'DELETE',
