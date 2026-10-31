@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "EDURAIN",
+    "slug": "edurainindia",
+    "owner": "edurainindia",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "edurain",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.edurainindia.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow EDURAIN to access your photo library to set your profile picture.",
+        "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture."
+      }
+    },
+    "android": {
+      "package": "com.edurainindia.app",
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#175A67",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "de7a99e0-3c7e-4173-a866-6a316d37a0f2"
+      }
+    }
+  }
+}

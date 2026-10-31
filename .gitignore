@@ -1,0 +1,32 @@
+# Local environment and secrets
+.env
+.env*.local
+*.pem
+*.keystore
+*.jks
+
+# Dependencies
+node_modules/
+.pnpm-store
+
+# Expo & Builds
+.expo/
+dist/
+web-build/
+android/
+ios/
+
+# Native build artifacts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro cache
+.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo
+
