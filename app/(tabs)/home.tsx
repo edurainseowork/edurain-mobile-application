@@ -201,60 +201,80 @@ export default function HomeScreen() {
 
         {/* Library Section Header */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Feather name="book-open" size={18} color="#0F3C45" />
+          <Feather name="menu" size={18} color="#0B3B42" />
           <Text style={styles.sectionTitle}>Library</Text>
         </View>
 
-        {/* Library Cards Grid */}
-        <View style={styles.libraryGrid}>
-          <TouchableOpacity
-            style={styles.libraryCard}
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/library')}
-          >
-            <View style={[styles.libraryIconBox, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="book" size={22} color="#D97706" />
+        {/* 4 Library Feature Cards */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.libraryHorizontalScroll}
+        >
+          {/* 1. Saved Bookmarks */}
+          <View style={styles.libraryHorizontalCard}>
+            <View style={[styles.librarySquareIcon, { backgroundColor: '#F59E0B' }]}>
+              <Feather name="bookmark" size={24} color="#FFFFFF" />
             </View>
-            <Text style={styles.libraryCardTitle}>Course Notes</Text>
-            <Text style={styles.libraryCardSub}>PDFs & Modules</Text>
-          </TouchableOpacity>
+            <Text style={styles.libCardTitle}>Saved Bookmarks</Text>
+            <Text style={styles.libCardBadge}>Saved Items</Text>
+            <Text style={styles.libCardSub}>Watch Later & Fast Revision</Text>
+            <TouchableOpacity
+              style={styles.libCardLinkBtn}
+              onPress={() => router.push('/bookmarks' as any)}
+            >
+              <Text style={styles.libCardLinkText}>Open Bookmarks  ›</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.libraryCard}
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/courses')}
-          >
-            <View style={[styles.libraryIconBox, { backgroundColor: '#E0F2FE' }]}>
-              <Ionicons name="trophy" size={22} color="#0284C7" />
+          {/* 2. Your Class Material */}
+          <View style={styles.libraryHorizontalCard}>
+            <View style={[styles.librarySquareIcon, { backgroundColor: '#10B981' }]}>
+              <Feather name="book" size={24} color="#FFFFFF" />
             </View>
-            <Text style={styles.libraryCardTitle}>Test Series</Text>
-            <Text style={styles.libraryCardSub}>All India Mocks</Text>
-          </TouchableOpacity>
+            <Text style={styles.libCardTitle}>Your Class Material</Text>
+            <Text style={styles.libCardBadge}>PDF Notes & Maps</Text>
+            <Text style={styles.libCardSub}>Recorded Lectures & Archives</Text>
+            <TouchableOpacity
+              style={styles.libCardLinkBtn}
+              onPress={() => router.push('/ebooks' as any)}
+            >
+              <Text style={styles.libCardLinkText}>View Materials  ›</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.libraryCard}
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/courses')}
-          >
-            <View style={[styles.libraryIconBox, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="videocam" size={22} color="#16A34A" />
+          {/* 3. Your Live Classes */}
+          <View style={styles.libraryHorizontalCard}>
+            <View style={[styles.librarySquareIcon, { backgroundColor: '#EF4444' }]}>
+              <Feather name="video" size={24} color="#FFFFFF" />
             </View>
-            <Text style={styles.libraryCardTitle}>Live Classes</Text>
-            <Text style={styles.libraryCardSub}>Recorded Vault</Text>
-          </TouchableOpacity>
+            <Text style={styles.libCardTitle}>Your Live Classes</Text>
+            <Text style={styles.libCardBadge}>LIVE STREAM</Text>
+            <Text style={styles.libCardSub}>Interactive Q&A Rooms</Text>
+            <TouchableOpacity
+              style={styles.libCardLinkBtn}
+              onPress={() => router.push('/(tabs)/courses' as any)}
+            >
+              <Text style={styles.libCardLinkText}>Join Live Room  ›</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.libraryCard}
-            activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/profile')}
-          >
-            <View style={[styles.libraryIconBox, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="ribbon" size={22} color="#9333EA" />
+          {/* 4. All India Test Series */}
+          <View style={styles.libraryHorizontalCard}>
+            <View style={[styles.librarySquareIcon, { backgroundColor: '#059669' }]}>
+              <Feather name="target" size={24} color="#FFFFFF" />
             </View>
-            <Text style={styles.libraryCardTitle}>Purchases</Text>
-            <Text style={styles.libraryCardSub}>Invoices & Access</Text>
-          </TouchableOpacity>
-        </View>
+            <Text style={styles.libCardTitle}>All India Test Series</Text>
+            <Text style={styles.libCardBadge}>Active CBT Tests</Text>
+            <Text style={styles.libCardSub}>Real NTA Exam Pattern</Text>
+            <TouchableOpacity
+              style={styles.libCardLinkBtn}
+              onPress={() => router.push('/test-series' as any)}
+            >
+              <Text style={styles.libCardLinkText}>Start Practice Test  ›</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </ScrollView>
     </View>
   );
@@ -421,41 +441,64 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
-  libraryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  libraryHorizontalScroll: {
     gap: 12,
+    paddingRight: 16,
+    paddingBottom: 8,
   },
-  libraryCard: {
-    width: (SCREEN_WIDTH - 44) / 2,
+  libraryHorizontalCard: {
+    width: 200,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     shadowColor: '#0F3C45',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 1,
-    gap: 6,
+    elevation: 2,
+    alignItems: 'center',
+    textAlign: 'center',
   },
-  libraryIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  librarySquareIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
   },
-  libraryCardTitle: {
-    fontSize: 14,
+  libCardTitle: {
+    fontSize: 15,
     fontFamily: Theme.fonts.bold,
     color: '#0F3C45',
+    marginBottom: 4,
+    textAlign: 'center',
   },
-  libraryCardSub: {
+  libCardBadge: {
+    fontSize: 10,
+    fontFamily: Theme.fonts.bold,
+    color: '#0D9488',
+    marginBottom: 4,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  libCardSub: {
     fontSize: 11,
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 15,
+    marginBottom: 14,
+  },
+  libCardLinkBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  libCardLinkText: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0D9488',
   },
 });

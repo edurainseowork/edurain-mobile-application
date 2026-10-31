@@ -131,18 +131,12 @@ export default function MentorshipScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
       >
-        {/* Breadcrumb Navigation Row */}
-        <View style={styles.breadcrumbRow}>
+        {/* Clean Header: Back Button + Title (No Breadcrumbs) */}
+        <View style={styles.titleHeaderRow}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
             <Feather name="arrow-left" size={18} color="#0F3C45" />
           </TouchableOpacity>
-          <View style={styles.breadcrumbPill}>
-            <Text style={styles.breadcrumbText}>
-              Home <Text style={styles.breadcrumbSep}>›</Text> Features{' '}
-              <Text style={styles.breadcrumbSep}>›</Text>{' '}
-              <Text style={styles.breadcrumbActive}>1 to 1 Mentorship</Text>
-            </Text>
-          </View>
+          <Text style={styles.titleHeaderLabel}>1 to 1 Mentorship</Text>
         </View>
 
         {/* Search Bar */}
@@ -407,10 +401,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-  breadcrumbRow: {
+  titleHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     marginBottom: 12,
   },
   backBtn: {
@@ -423,23 +417,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  breadcrumbPill: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  breadcrumbText: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.regular,
-    color: '#64748B',
-  },
-  breadcrumbSep: {
-    color: '#94A3B8',
-  },
-  breadcrumbActive: {
+  titleHeaderLabel: {
+    fontSize: 16,
     fontFamily: Theme.fonts.bold,
     color: '#0F3C45',
   },
@@ -782,3 +761,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+

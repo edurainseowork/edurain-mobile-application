@@ -83,6 +83,7 @@ export async function submitDoubtTicket(data: {
   studentEmail?: string;
   studentPhone?: string;
   diagramUrl?: string;
+  attachments?: string[];
 }): Promise<{ success: boolean; ticket?: any; error?: string }> {
   try {
     const res = await apiFetch<any>('/api/tickets', {
@@ -96,7 +97,8 @@ export async function submitDoubtTicket(data: {
         studentName: data.studentName || 'Student',
         studentEmail: data.studentEmail || 'student@edurain.in',
         studentPhone: data.studentPhone || '',
-        diagramUrl: data.diagramUrl || null,
+        diagramUrl: data.diagramUrl || (data.attachments && data.attachments[0]) || null,
+        attachments: data.attachments || (data.diagramUrl ? [data.diagramUrl] : []),
       }),
     });
     return { success: true, ticket: res?.ticket || res };

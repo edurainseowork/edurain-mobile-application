@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Theme } from '../../constants/theme';
 
 export default function TabLayout() {
@@ -8,13 +8,13 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Theme.colors.ink.primary,
-        tabBarInactiveTintColor: Theme.colors.text.muted,
+        tabBarActiveTintColor: '#0B3B42',
+        tabBarInactiveTintColor: '#64748B',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopColor: 'rgba(23, 90, 103, 0.1)',
           height: 64,
-          paddingBottom: 10,
+          paddingBottom: 8,
           paddingTop: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -36,6 +36,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="daily-drop"
+        options={{
+          title: 'Daily Drop',
+          tabBarIcon: ({ color, size }) => <Feather name="zap" size={size} color={color as string} />,
+        }}
+      />
+      <Tabs.Screen
         name="courses"
         options={{
           title: 'Courses',
@@ -43,20 +50,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="library"
+        name="test-pass"
         options={{
-          title: 'Library',
-          tabBarIcon: ({ color, size }) => <Feather name="bookmark" size={size} color={color as string} />,
+          title: 'Test Pass',
+          tabBarIcon: ({ color, size }) => <Feather name="check-circle" size={size} color={color as string} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color as string} />,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="library"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
   );
 }
-

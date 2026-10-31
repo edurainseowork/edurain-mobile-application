@@ -6,18 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Image,
   ActivityIndicator,
   Alert,
   Modal,
-  KeyboardAvoidingView,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
-import { AppHeader } from '../components/Home/AppHeader';
 import {
   fetchStudentDoubtTickets,
   submitDoubtTicket,
@@ -25,27 +26,34 @@ import {
   DoubtTicket,
 } from '../api/doubts';
 
-const SUBJECTS = ['Physics', 'Chemistry', 'Mathematics', 'Biology', 'General'];
+const CATEGORIES = [
+  'Mathematics',
+  'Physics',
+  'Chemistry',
+  'Biology',
+  'IIT-JEE Advanced',
+  'NEET-UG',
+  'General Doubt',
+];
 
 export default function AskYourDoubtScreen() {
-  const insets = useSafeAreaInsets();
   const { user, goal } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
-  const [selectedSubject, setSelectedSubject] = useState<string>('Physics');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Mathematics');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [diagramUrl, setDiagramUrl] = useState('');
+  const [selectedImage, setSelectedImage] = useState<{ uri: string; base64?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Tickets history
+  // Tickets & Chat
   const [tickets, setTickets] = useState<DoubtTicket[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(false);
-
-  // Chat Modal for selected ticket
+  const [ticketsModalVisible, setTicketsModalVisible] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<DoubtTicket | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+
+  const cohortName = goal?.name?.toUpperCase() || 'NEET';
 
   useEffect(() => {
     loadTickets();
@@ -61,55 +69,129 @@ export default function AskYourDoubtScreen() {
     }
   };
 
-  const handleSubmitDoubt = async () => {
+  const handlePickFromGallery = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please grant access to your photo gallery to upload problem diagrams.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setSelectedImage({
+        uri: asset.uri,
+        base64: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined,
+      });
+    }
+  };
+
+  const handleCaptureWithCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permission Required',
+        'Please grant camera permissions to photograph your textbook or handwritten notes.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.7,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const asset = result.assets[0];
+      setSelectedImage({
+        uri: asset.uri,
+        base64: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined,
+      });
+    }
+  };
+
+  const handleImagePickerAction = () => {
+    Alert.alert(
+      'Attach Problem Screenshot',
+      'Choose the method to attach your doubt diagram:',
+      [
+        { text: 'Take Photo with Camera', onPress: handleCaptureWithCamera },
+        { text: 'Choose from Gallery', onPress: handlePickFromGallery },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('Required', 'Please enter a brief topic or title for your doubt.');
+      Alert.alert('Required Field', 'Please enter a doubt topic or concept title.');
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Required', 'Please explain your doubt or write the problem statement.');
+      Alert.alert('Required Field', 'Please describe what you have tried & where you are stuck.');
       return;
     }
 
     setSubmitting(true);
     try {
+      const attachments = selectedImage?.base64 ? [selectedImage.base64] : [];
       const res = await submitDoubtTicket({
-        subject: selectedSubject,
+        subject: selectedCategory,
         title: title.trim(),
         description: description.trim(),
-        examTag: goal?.name || 'JEE Advanced',
+        examTag: cohortName,
         studentName: user?.name || 'Student',
         studentEmail: user?.email || undefined,
         studentPhone: user?.phone || undefined,
-        diagramUrl: diagramUrl.trim() || undefined,
+        diagramUrl: attachments[0],
+        attachments,
       });
 
       if (res.success) {
         Alert.alert(
-          'Doubt Ticket Created! 🎯',
-          'Your question has been dispatched to our expert educators and teaching assistants. You can track progress in My Doubts.',
+          'Doubt Ticket Raised! 🚀',
+          'Your ticket is queued for our Teacher Assistant Desk. Average response time is ~14 mins.',
           [
             {
-              text: 'View My Doubts',
+              text: 'View Ticket',
               onPress: () => {
-                setActiveTab('history');
+                setTitle('');
+                setDescription('');
+                setSelectedImage(null);
+                loadTickets();
+                setTicketsModalVisible(true);
+              },
+            },
+            {
+              text: 'Done',
+              onPress: () => {
+                setTitle('');
+                setDescription('');
+                setSelectedImage(null);
                 loadTickets();
               },
             },
           ]
         );
-        setTitle('');
-        setDescription('');
-        setDiagramUrl('');
       } else {
-        Alert.alert('Error', res.error || 'Failed to submit doubt ticket');
+        Alert.alert('Submission Error', res.error || 'Failed to submit doubt. Please try again.');
       }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleSendReply = async () => {
+  const handleSendTicketReply = async () => {
     if (!selectedTicket || !replyText.trim()) return;
     setSendingReply(true);
     try {
@@ -119,748 +201,850 @@ export default function AskYourDoubtScreen() {
         senderName: user?.name || 'Student',
       });
       if (res.success) {
-        const newMsg = {
-          id: `msg_${Date.now()}`,
-          sender: 'student' as const,
-          senderName: user?.name || 'Student',
-          text: replyText.trim(),
-          time: 'Just now',
-        };
-        setSelectedTicket((prev) =>
-          prev ? { ...prev, messages: [...(prev.messages || []), newMsg] } : null
-        );
         setReplyText('');
-      } else {
-        Alert.alert('Error', res.error || 'Failed to send reply');
+        loadTickets();
       }
     } finally {
       setSendingReply(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'resolved':
-      case 'solved':
-        return { bg: '#DCFCE7', text: '#16A34A', border: '#86EFAC' };
-      case 'in_progress':
-      case 'in review':
-        return { bg: '#FEF3C7', text: '#D97706', border: '#FCD34D' };
-      case 'resolution_requested':
-        return { bg: '#E0E7FF', text: '#4F46E5', border: '#C7D2FE' };
-      default:
-        return { bg: '#F1F5F9', text: '#64748B', border: '#CBD5E1' };
-    }
-  };
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* App Header */}
-      <AppHeader
-        unreadCount={0}
-        onSearchPress={() => router.push('/(tabs)/courses')}
-        onNotificationsPress={() => router.push('/(tabs)/profile')}
-        onProfilePress={() => router.push('/(tabs)/profile')}
-      />
-
-      {/* Breadcrumb Navigation */}
-      <View style={styles.breadcrumbBar}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {/* Top Header */}
+      <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.backBtn}
           onPress={() => router.back()}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
         >
-          <Feather name="arrow-left" size={18} color="#0F3C45" />
+          <Feather name="arrow-left" size={20} color="#0B3B42" />
         </TouchableOpacity>
 
-        <View style={styles.breadcrumbWrap}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/home')} style={styles.breadItem}>
-            <Feather name="home" size={13} color="#0D9488" />
-            <Text style={styles.breadTextLink}>Home</Text>
-          </TouchableOpacity>
-          <Feather name="chevron-right" size={12} color="#94A3B8" />
-          <Text style={styles.breadTextMuted}>Features</Text>
-          <Feather name="chevron-right" size={12} color="#94A3B8" />
-          <View style={styles.breadActiveBadge}>
-            <Text style={styles.breadActiveText}>Ask Your Doubt</Text>
+        <Text style={styles.headerTitle}>Ask a Doubt</Text>
+
+        <TouchableOpacity
+          style={styles.myTicketsBtn}
+          onPress={() => setTicketsModalVisible(true)}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="ticket-outline" size={16} color="#0B3B42" />
+          <Text style={styles.myTicketsBtnText}>My Tickets</Text>
+          <View style={styles.myTicketsBadge}>
+            <Text style={styles.myTicketsBadgeText}>{tickets.length}</Text>
           </View>
-        </View>
-      </View>
-
-      {/* Page Title & Subtitle */}
-      <View style={styles.titleContainer}>
-        <Text style={styles.pageTitle}>Ask Your Doubt</Text>
-        <Text style={styles.pageSubtitle}>
-          Connect with master educators for 1-on-1 problem-solving and step-by-step clarity.
-        </Text>
-      </View>
-
-      {/* Tab Switcher */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'new' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('new')}
-        >
-          <Feather
-            name="plus-circle"
-            size={16}
-            color={activeTab === 'new' ? '#0F3C45' : '#64748B'}
-          />
-          <Text style={[styles.tabText, activeTab === 'new' && styles.tabTextActive]}>
-            New Doubt
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]}
-          onPress={() => {
-            setActiveTab('history');
-            loadTickets();
-          }}
-        >
-          <Feather
-            name="clock"
-            size={16}
-            color={activeTab === 'history' ? '#0F3C45' : '#64748B'}
-          />
-          <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>
-            My Doubts ({tickets.length})
-          </Text>
         </TouchableOpacity>
       </View>
 
-      {activeTab === 'new' ? (
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-          keyboardShouldPersistTaps="handled"
         >
-          {/* Subject Selector */}
-          <Text style={styles.fieldLabel}>Select Subject</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subjectScroll}>
-            {SUBJECTS.map((sub) => {
-              const active = selectedSubject === sub;
-              return (
+          {/* Main Card */}
+          <View style={styles.formCard}>
+            {/* Top Subtitle Row */}
+            <View style={styles.subHeaderRow}>
+              <View style={styles.sectionPill}>
+                <Text style={styles.sectionPillText}>✨ ASK A DOUBT SECTION</Text>
+              </View>
+              <View style={styles.cohortPill}>
+                <Text style={styles.cohortPillLabel}>Cohort: </Text>
+                <Text style={styles.cohortPillValue}>{cohortName}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.mainTitle}>Raise a Ticket</Text>
+            <Text style={styles.mainDesc}>
+              Have a doubt or question? Submit your query with code, diagrams or screenshots and
+              our subject experts will resolve it.
+            </Text>
+
+            {/* Subject Selector */}
+            <Text style={styles.inputLabel}>
+              Select Subject / Topic Category <Text style={styles.asterisk}>*</Text>
+            </Text>
+            <View style={styles.categoryWrap}>
+              {CATEGORIES.map((cat) => {
+                const isSelected = selectedCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.catChip, isSelected && styles.catChipSelected]}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.8}
+                  >
+                    {isSelected && <View style={styles.catDot} />}
+                    <Text style={[styles.catChipText, isSelected && styles.catChipTextSelected]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Concept Title */}
+            <Text style={styles.inputLabel}>
+              Doubt Topic / Concept Title <Text style={styles.asterisk}>*</Text>
+            </Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="write your doubt"
+              placeholderTextColor="#94A3B8"
+              value={title}
+              onChangeText={setTitle}
+            />
+
+            {/* Description Textarea */}
+            <View style={styles.descLabelRow}>
+              <Text style={styles.inputLabel}>
+                Describe What You've Tried & Where You're Stuck <Text style={styles.asterisk}>*</Text>
+              </Text>
+              <Text style={styles.charCount}>{description.length} / 1000 chars</Text>
+            </View>
+            <TextInput
+              style={styles.textArea}
+              placeholder="Write clear steps, problem question, equation, or describe the unexpected behavior..."
+              placeholderTextColor="#94A3B8"
+              value={description}
+              onChangeText={(t) => setDescription(t.slice(0, 1000))}
+              multiline
+              textAlignVertical="top"
+            />
+
+            {/* Image Attachment Upload Box */}
+            <Text style={styles.inputLabel}>
+              Doubt Diagram / Problem Screenshot{' '}
+              <Text style={styles.subLabel}>
+                (1 Photo {selectedImage ? '1' : '0'} / 1 image (target Max) ~1MB)
+              </Text>
+            </Text>
+
+            {selectedImage ? (
+              <View style={styles.imagePreviewBox}>
+                <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
                 <TouchableOpacity
-                  key={sub}
-                  style={[styles.subjectChip, active && styles.subjectChipActive]}
-                  onPress={() => setSelectedSubject(sub)}
+                  style={styles.removeImageBtn}
+                  onPress={() => setSelectedImage(null)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.subjectChipText, active && styles.subjectChipTextActive]}>
-                    {sub}
-                  </Text>
+                  <Feather name="x" size={16} color="#FFFFFF" />
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* Doubt Title */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Doubt Topic / Question Title</Text>
-          <TextInput
-            style={styles.textInput}
-            placeholder="e.g. Rotational Motion - Moment of Inertia of Hollow Cone"
-            placeholderTextColor="#94A3B8"
-            value={title}
-            onChangeText={setTitle}
-          />
-
-          {/* Problem Details */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Detailed Problem Description</Text>
-          <TextInput
-            style={[styles.textInput, styles.textArea]}
-            placeholder="Write the full problem statement, textbook question number, or specific step where you got stuck..."
-            placeholderTextColor="#94A3B8"
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-            value={description}
-            onChangeText={setDescription}
-          />
-
-          {/* Diagram URL (Optional) */}
-          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Diagram or Image URL (Optional)</Text>
-          <TextInput
-            style={styles.textInput}
-            placeholder="https://... (Optional diagram link or image preview)"
-            placeholderTextColor="#94A3B8"
-            value={diagramUrl}
-            onChangeText={setDiagramUrl}
-            autoCapitalize="none"
-          />
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-            onPress={handleSubmitDoubt}
-            disabled={submitting}
-            activeOpacity={0.88}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              </View>
             ) : (
-              <>
-                <Feather name="send" size={18} color="#FFFFFF" />
-                <Text style={styles.submitButtonText}>Submit Doubt Ticket</Text>
-              </>
+              <TouchableOpacity
+                style={styles.uploadDashedBox}
+                onPress={handleImagePickerAction}
+                activeOpacity={0.8}
+              >
+                <View style={styles.uploadIconCircle}>
+                  <Feather name="upload-cloud" size={24} color="#0B3B42" />
+                </View>
+                <Text style={styles.uploadMainText}>
+                  Drop 1 image file (PNG, JPG, WebP) or{' '}
+                  <Text style={styles.browseHighlight}>browse files</Text>
+                </Text>
+                <Text style={styles.uploadSubText}>
+                  Auto-compressed to ~1MB with high visual clarity for TA review
+                </Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+
+            {/* Immediate Notice */}
+            <View style={styles.noticeBox}>
+              <Feather name="zap" size={16} color="#0B3B42" style={{ marginRight: 8 }} />
+              <Text style={styles.noticeText}>
+                Your query will appear immediately in the Teacher Assistant Desk queue.
+              </Text>
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.submitBtnText}>Raise a Ticket</Text>
+                  <Feather name="send" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Average TA Response Footer */}
+          <View style={styles.footerBar}>
+            <View style={styles.footerLeft}>
+              <View style={styles.footerLiveDot} />
+              <Text style={styles.footerText}>
+                Average TA Response Time: <Text style={styles.footerBold}>~14 mins</Text>
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => Alert.alert('EduRain TA FAQ', 'Our teaching assistants and senior mentors review tickets in real time 24/7.')}>
+              <Text style={styles.footerFaq}>FAQ</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
-      ) : (
-        /* History Tab */
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-        >
+      </KeyboardAvoidingView>
+
+      {/* Tickets Modal */}
+      <Modal
+        visible={ticketsModalVisible}
+        animationType="slide"
+        onRequestClose={() => setTicketsModalVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => setTicketsModalVisible(false)}
+            >
+              <Feather name="arrow-left" size={20} color="#0B3B42" />
+            </TouchableOpacity>
+            <Text style={styles.modalHeaderTitle}>My Doubt Tickets</Text>
+            <View style={{ width: 36 }} />
+          </View>
+
           {loadingTickets ? (
-            <View style={styles.loaderWrap}>
-              <ActivityIndicator size="large" color="#0F3C45" />
-              <Text style={styles.loaderText}>Loading your doubts...</Text>
+            <View style={styles.centerBox}>
+              <ActivityIndicator size="large" color="#0B3B42" />
             </View>
           ) : tickets.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="comment-question-outline" size={56} color="#94A3B8" />
-              <Text style={styles.emptyTitle}>No doubts submitted yet</Text>
+            <View style={styles.centerBox}>
+              <Feather name="check-circle" size={48} color="#94A3B8" />
+              <Text style={styles.emptyTitle}>No Doubts Raised Yet</Text>
               <Text style={styles.emptySubtitle}>
-                Have a tricky equation or concept? Submit your question and get answers from our educators.
+                When you raise a doubt ticket, you can chat with assigned educators and view solutions here.
               </Text>
-              <TouchableOpacity
-                style={styles.askFirstBtn}
-                onPress={() => setActiveTab('new')}
-              >
-                <Text style={styles.askFirstBtnText}>Ask Your First Doubt</Text>
-              </TouchableOpacity>
             </View>
           ) : (
-            tickets.map((ticket) => {
-              const sc = getStatusColor(ticket.status);
-              return (
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+              {tickets.map((t) => (
                 <TouchableOpacity
-                  key={ticket.id}
+                  key={t.id}
                   style={styles.ticketCard}
-                  activeOpacity={0.88}
-                  onPress={() => setSelectedTicket(ticket)}
+                  onPress={() => setSelectedTicket(t)}
+                  activeOpacity={0.8}
                 >
-                  <View style={styles.ticketTopRow}>
-                    <View style={styles.subjectPill}>
-                      <Text style={styles.subjectPillText}>{ticket.subject}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: sc.bg, borderColor: sc.border }]}>
-                      <Text style={[styles.statusBadgeText, { color: sc.text }]}>
-                        {ticket.status.toUpperCase()}
+                  <View style={styles.ticketCardHeader}>
+                    <Text style={styles.ticketSubject}>{t.subject}</Text>
+                    <View
+                      style={[
+                        styles.ticketStatusPill,
+                        t.status === 'resolved'
+                          ? { backgroundColor: '#DCFCE7' }
+                          : { backgroundColor: '#FEF3C7' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.ticketStatusText,
+                          t.status === 'resolved' ? { color: '#15803D' } : { color: '#B45309' },
+                        ]}
+                      >
+                        {t.status.toUpperCase()}
                       </Text>
                     </View>
                   </View>
-
-                  <Text style={styles.ticketTitle} numberOfLines={2}>
-                    {ticket.title}
+                  <Text style={styles.ticketTitle}>{t.title}</Text>
+                  <Text style={styles.ticketSnippet} numberOfLines={2}>
+                    {t.description || t.questionFull}
                   </Text>
-
-                  {ticket.questionFull ? (
-                    <Text style={styles.ticketDesc} numberOfLines={2}>
-                      {ticket.questionFull}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.ticketFooter}>
-                    <Text style={styles.ticketMeta}>
-                      ID: {ticket.ticketNumber} • {ticket.submittedAtRelative}
-                    </Text>
-                    <View style={styles.chatAction}>
-                      <Text style={styles.chatActionText}>Open Chat</Text>
-                      <Feather name="chevron-right" size={14} color="#0D9488" />
-                    </View>
-                  </View>
+                  <Text style={styles.ticketMeta}>
+                    Submitted {t.submittedAtRelative || 'Recently'} • {t.assignedMentor || 'Faculty'}
+                  </Text>
                 </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
-
-      {/* Ticket Chat Bottom Sheet / Modal */}
-      <Modal visible={!!selectedTicket} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalBackdrop}
-        >
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 10 }]}>
-            {/* Sheet Header */}
-            <View style={styles.sheetHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetTicketNumber}>{selectedTicket?.ticketNumber}</Text>
-                <Text style={styles.sheetTitle} numberOfLines={1}>
-                  {selectedTicket?.title}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => setSelectedTicket(null)}
-              >
-                <Feather name="x" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Messages Thread */}
-            <ScrollView style={styles.messagesList} showsVerticalScrollIndicator={false}>
-              {/* Problem statement message */}
-              <View style={[styles.msgBubble, styles.msgStudent]}>
-                <Text style={styles.msgSender}>You (Initial Doubt)</Text>
-                <Text style={styles.msgBody}>{selectedTicket?.questionFull || selectedTicket?.description}</Text>
-              </View>
-
-              {(selectedTicket?.messages || []).map((m) => {
-                const isMe = m.sender === 'student';
-                return (
-                  <View
-                    key={m.id}
-                    style={[styles.msgBubble, isMe ? styles.msgStudent : styles.msgEducator]}
-                  >
-                    <Text style={isMe ? styles.msgSender : styles.msgEducatorSender}>
-                      {isMe ? 'You' : m.senderName || 'Educator / TA'}
-                    </Text>
-                    <Text style={isMe ? styles.msgBody : styles.msgEducatorBody}>{m.text}</Text>
-                    <Text style={styles.msgTime}>{m.time}</Text>
-                  </View>
-                );
-              })}
+              ))}
             </ScrollView>
+          )}
 
-            {/* Reply Input */}
-            <View style={styles.replyBox}>
-              <TextInput
-                style={styles.replyInput}
-                placeholder="Type your follow-up reply..."
-                placeholderTextColor="#94A3B8"
-                value={replyText}
-                onChangeText={setReplyText}
-              />
-              <TouchableOpacity
-                style={styles.sendBtn}
-                onPress={handleSendReply}
-                disabled={sendingReply || !replyText.trim()}
-              >
-                {sendingReply ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Feather name="send" size={18} color="#FFFFFF" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+          {/* Chat modal for active ticket */}
+          {selectedTicket && (
+            <Modal
+              visible={Boolean(selectedTicket)}
+              animationType="slide"
+              onRequestClose={() => setSelectedTicket(null)}
+            >
+              <SafeAreaView style={styles.modalContainer}>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity
+                    style={styles.backBtn}
+                    onPress={() => setSelectedTicket(null)}
+                  >
+                    <Feather name="arrow-left" size={20} color="#0B3B42" />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.modalHeaderTitle} numberOfLines={1}>
+                      {selectedTicket.title}
+                    </Text>
+                    <Text style={styles.ticketMeta}>{selectedTicket.subject}</Text>
+                  </View>
+                </View>
+
+                <ScrollView style={{ flex: 1, padding: 16 }}>
+                  <View style={styles.ticketDetailCard}>
+                    <Text style={styles.ticketDetailLabel}>Problem Statement:</Text>
+                    <Text style={styles.ticketDetailDesc}>
+                      {selectedTicket.description || selectedTicket.questionFull}
+                    </Text>
+                    {selectedTicket.diagramUrl && (
+                      <Image
+                        source={{ uri: selectedTicket.diagramUrl }}
+                        style={styles.ticketDetailImage}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </View>
+
+                  {/* Messages */}
+                  {(selectedTicket.messages || []).map((msg) => (
+                    <View
+                      key={msg.id}
+                      style={[
+                        styles.chatBubble,
+                        msg.sender === 'student' ? styles.studentBubble : styles.taBubble,
+                      ]}
+                    >
+                      <Text style={styles.chatSender}>{msg.senderName}</Text>
+                      <Text style={styles.chatText}>{msg.text}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <View style={styles.replyBar}>
+                  <TextInput
+                    style={styles.replyInput}
+                    placeholder="Type follow-up question..."
+                    placeholderTextColor="#94A3B8"
+                    value={replyText}
+                    onChangeText={setReplyText}
+                  />
+                  <TouchableOpacity
+                    style={styles.replySendBtn}
+                    onPress={handleSendTicketReply}
+                    disabled={sendingReply}
+                  >
+                    {sendingReply ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Feather name="send" size={18} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+            </Modal>
+          )}
+        </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#EAF0EC',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+  },
+  myTicketsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    gap: 6,
+  },
+  myTicketsBtnText: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+  },
+  myTicketsBadge: {
+    backgroundColor: '#0B3B42',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  myTicketsBadgeText: {
+    fontSize: 10,
+    fontFamily: Theme.fonts.bold,
+    color: '#FFFFFF',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F0F4F2',
   },
-  breadcrumbBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  contentContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
+    paddingBottom: 32,
   },
-  backButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  formCard: {
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(15, 60, 69, 0.12)',
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 16,
   },
-  breadcrumbWrap: {
+  subHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  breadItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  breadTextLink: {
-    fontSize: 12,
-    color: '#0D9488',
-    fontFamily: Theme.fonts.semiBold,
-  },
-  breadTextMuted: {
-    fontSize: 12,
-    color: '#64748B',
-    fontFamily: Theme.fonts.regular,
-  },
-  breadActiveBadge: {
-    backgroundColor: 'rgba(13, 148, 136, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  breadActiveText: {
-    fontSize: 11,
-    color: '#0F3C45',
-    fontFamily: Theme.fonts.semiBold,
-  },
-  titleContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  pageTitle: {
-    fontSize: 22,
-    fontFamily: Theme.fonts.bold,
-    color: '#0F3C45',
-    letterSpacing: -0.3,
-  },
-  pageSubtitle: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: '#52796F',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
-  tabBtn: {
+  sectionPill: {
+    backgroundColor: '#E2F3E7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  sectionPillText: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.bold,
+    color: '#059669',
+    letterSpacing: 0.4,
+  },
+  cohortPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(15, 60, 69, 0.12)',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  tabBtnActive: {
-    backgroundColor: '#E6F4F1',
-    borderColor: '#0D9488',
-  },
-  tabText: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.medium,
+  cohortPillLabel: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
     color: '#64748B',
   },
-  tabTextActive: {
-    color: '#0F3C45',
-    fontFamily: Theme.fonts.semiBold,
+  cohortPillValue: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 4,
+  mainTitle: {
+    fontSize: 22,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+    marginBottom: 6,
   },
-  fieldLabel: {
+  mainDesc: {
     fontSize: 13,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#0F3C45',
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+    lineHeight: 18,
+    marginBottom: 18,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontFamily: Theme.fonts.bold,
+    color: '#1E293B',
     marginBottom: 8,
   },
-  subjectScroll: {
+  subLabel: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+  },
+  asterisk: {
+    color: '#EF4444',
+  },
+  categoryWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 18,
   },
-  subjectChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(15, 60, 69, 0.1)',
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  subjectChipActive: {
-    backgroundColor: '#0F3C45',
-    borderColor: '#0F3C45',
+  catChipSelected: {
+    backgroundColor: '#0B3B42',
   },
-  subjectChipText: {
-    fontSize: 13,
+  catDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+    marginRight: 6,
+  },
+  catChipText: {
+    fontSize: 12,
     fontFamily: Theme.fonts.medium,
     color: '#475569',
   },
-  subjectChipTextActive: {
+  catChipTextSelected: {
     color: '#FFFFFF',
-    fontFamily: Theme.fonts.semiBold,
+    fontFamily: Theme.fonts.bold,
   },
   textInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: Theme.fonts.regular,
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  descLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  charCount: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
+    color: '#94A3B8',
+  },
+  textArea: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
     fontFamily: Theme.fonts.regular,
-    color: '#1E293B',
+    color: '#0F172A',
+    height: 110,
+    marginBottom: 16,
+  },
+  uploadDashedBox: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  uploadIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  uploadMainText: {
+    fontSize: 13,
+    fontFamily: Theme.fonts.regular,
+    color: '#334155',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  browseHighlight: {
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+    textDecorationLine: 'underline',
+  },
+  uploadSubText: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.regular,
+    color: '#94A3B8',
+    textAlign: 'center',
+  },
+  imagePreviewBox: {
+    position: 'relative',
+    borderRadius: 14,
+    overflow: 'hidden',
+    height: 180,
+    marginBottom: 16,
+    backgroundColor: '#0F172A',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: 'rgba(15, 60, 69, 0.15)',
+    borderColor: '#DCFCE7',
   },
-  textArea: {
-    minHeight: 110,
+  noticeText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Theme.fonts.regular,
+    color: '#166534',
+    lineHeight: 16,
   },
-  submitButton: {
+  submitBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#0F3C45',
-    paddingVertical: 14,
+    backgroundColor: '#0B3B42',
     borderRadius: 14,
-    marginTop: 24,
-    shadowColor: '#0F3C45',
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 3,
+    paddingVertical: 14,
   },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
+  submitBtnText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontFamily: Theme.fonts.bold,
   },
-  loaderWrap: {
+  footerBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  loaderText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#64748B',
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerLiveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
+  },
+  footerText: {
+    fontSize: 12,
     fontFamily: Theme.fonts.regular,
+    color: '#475569',
   },
-  emptyContainer: {
+  footerBold: {
+    fontFamily: Theme.fonts.bold,
+    color: '#0F172A',
+  },
+  footerFaq: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  modalHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalHeaderTitle: {
+    fontSize: 17,
+    fontFamily: Theme.fonts.bold,
+    color: '#0B3B42',
+  },
+  centerBox: {
+    flex: 1,
     justifyContent: 'center',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
+    alignItems: 'center',
+    paddingHorizontal: 32,
   },
   emptyTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: Theme.fonts.bold,
-    color: '#0F3C45',
+    color: '#0B3B42',
     marginTop: 12,
+    marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 13,
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 6,
     lineHeight: 18,
-  },
-  askFirstBtn: {
-    marginTop: 16,
-    backgroundColor: '#0F3C45',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  askFirstBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontFamily: Theme.fonts.semiBold,
   },
   ticketCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(15, 60, 69, 0.08)',
-    shadowColor: '#0F3C45',
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6,
-    elevation: 2,
+    borderColor: '#E2E8F0',
   },
-  ticketTopRow: {
+  ticketCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
-  subjectPill: {
-    backgroundColor: '#F0FDF4',
+  ticketSubject: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0284C7',
+  },
+  ticketStatusPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderRadius: 8,
   },
-  subjectPillText: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#15803D',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  statusBadgeText: {
+  ticketStatusText: {
     fontSize: 10,
     fontFamily: Theme.fonts.bold,
   },
   ticketTitle: {
     fontSize: 15,
     fontFamily: Theme.fonts.bold,
-    color: '#0F3C45',
-    lineHeight: 20,
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  ticketDesc: {
+  ticketSnippet: {
     fontSize: 13,
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  ticketFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    marginBottom: 8,
   },
   ticketMeta: {
     fontSize: 11,
-    fontFamily: Theme.fonts.medium,
+    fontFamily: Theme.fonts.regular,
     color: '#94A3B8',
   },
-  chatAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  ticketDetailCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
   },
-  chatActionText: {
+  ticketDetailLabel: {
     fontSize: 12,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#0D9488',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 60, 69, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '85%',
-    minHeight: '60%',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  sheetTicketNumber: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#0D9488',
-  },
-  sheetTitle: {
-    fontSize: 15,
     fontFamily: Theme.fonts.bold,
-    color: '#0F3C45',
-    marginTop: 2,
+    color: '#475569',
+    marginBottom: 4,
   },
-  closeBtn: {
-    padding: 6,
+  ticketDetailDesc: {
+    fontSize: 14,
+    fontFamily: Theme.fonts.regular,
+    color: '#0F172A',
+    lineHeight: 20,
+    marginBottom: 8,
   },
-  messagesList: {
-    flex: 1,
-    paddingVertical: 12,
+  ticketDetailImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: '#0F172A',
   },
-  msgBubble: {
+  chatBubble: {
     padding: 12,
     borderRadius: 14,
     marginBottom: 10,
     maxWidth: '85%',
   },
-  msgStudent: {
+  studentBubble: {
+    backgroundColor: '#E0F2FE',
     alignSelf: 'flex-end',
-    backgroundColor: '#E6F4F1',
-    borderBottomRightRadius: 2,
   },
-  msgEducator: {
+  taBubble: {
+    backgroundColor: '#F1F5F9',
     alignSelf: 'flex-start',
-    backgroundColor: '#F8FAFC',
-    borderBottomLeftRadius: 2,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  msgSender: {
+  chatSender: {
     fontSize: 11,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#0D9488',
-    marginBottom: 4,
+    fontFamily: Theme.fonts.bold,
+    color: '#0369A1',
+    marginBottom: 2,
   },
-  msgEducatorSender: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.semiBold,
-    color: '#D97706',
-    marginBottom: 4,
-  },
-  msgBody: {
+  chatText: {
     fontSize: 13,
     fontFamily: Theme.fonts.regular,
-    color: '#0F3C45',
+    color: '#0F172A',
     lineHeight: 18,
   },
-  msgEducatorBody: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: '#1E293B',
-    lineHeight: 18,
-  },
-  msgTime: {
-    fontSize: 10,
-    fontFamily: Theme.fonts.regular,
-    color: '#94A3B8',
-    alignSelf: 'flex-end',
-    marginTop: 4,
-  },
-  replyBox: {
+  replyBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingTop: 8,
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    gap: 8,
   },
   replyInput: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 14,
     fontFamily: Theme.fonts.regular,
-    color: '#1E293B',
+    color: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#0F3C45',
-    alignItems: 'center',
+  replySendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#0B3B42',
     justifyContent: 'center',
+    alignItems: 'center',
   },
 });

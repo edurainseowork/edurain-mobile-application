@@ -81,3 +81,4 @@ export async function bookMentorSlot(slotId: number, topic: string): Promise<{ s
     return { success: false, error: err?.message || 'Could not complete booking' };
   }
 }
+
