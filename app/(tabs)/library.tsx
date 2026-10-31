@@ -142,8 +142,8 @@ export default function LibraryScreen() {
       <AppHeader
         unreadCount={0}
         onSearchPress={() => router.push('/(tabs)/courses')}
-        onNotificationsPress={() => router.push('/(tabs)/profile')}
-        onProfilePress={() => router.push('/(tabs)/profile')}
+        onNotificationsPress={() => router.push('/notifications' as any)}
+        onProfilePress={() => router.push('/profile' as any)}
       />
 
       {/* Header */}

@@ -70,6 +70,23 @@ export function AppHeader({
     });
   }, [goal]);
 
+  useEffect(() => {
+    let active = true;
+    const checkNotifs = () => {
+      fetchNotifications().then((notifs) => {
+        if (!active) return;
+        const unread = notifs.some((n) => !n.isRead);
+        setHasUnread(unread || notifs.length > 0);
+      }).catch(() => {});
+    };
+    checkNotifs();
+    const interval = setInterval(checkNotifs, 12000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const initials = (user?.name || 'ST')
     .split(' ')
     .filter(Boolean)
@@ -180,8 +197,15 @@ export function AppHeader({
 
           <TouchableOpacity
             style={styles.avatarWrap}
-            onPress={onProfilePress || (() => router.push('/(tabs)/profile'))}
-            activeOpacity={0.8}
+            onPress={() => {
+              if (onProfilePress) {
+                onProfilePress();
+              } else {
+                router.push('/profile' as any);
+              }
+            }}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             {user?.photo ? (
               <Image source={{ uri: user.photo }} style={styles.avatarImage} />
@@ -230,7 +254,7 @@ export function AppHeader({
             <TouchableOpacity
               style={styles.drawerProfileCard}
               activeOpacity={0.85}
-              onPress={() => navigateFromDrawer('/(tabs)/profile')}
+              onPress={() => navigateFromDrawer('/profile')}
             >
               <View style={styles.drawerAvatar}>
                 {user?.photo ? (
@@ -475,14 +499,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: '#EAF0EC',
   },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flex: 1,
+    marginRight: 6,
   },
   hamburgerBtn: {
     width: 36,
@@ -497,14 +523,14 @@ const styles = StyleSheet.create({
   brandWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   logo: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
   },
   brandName: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: Theme.fonts.bold,
     color: '#0B3B42',
     letterSpacing: 0.3,
@@ -513,22 +539,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 16,
-    gap: 3,
+    gap: 2,
     borderWidth: 1,
     borderColor: '#D1D5DB',
+    maxWidth: 95,
   },
   cohortPillText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontFamily: Theme.fonts.bold,
     color: '#0B3B42',
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   actionBtn: {
     width: 34,
