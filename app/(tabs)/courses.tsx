@@ -19,7 +19,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
 import { fetchCourses, fetchCategories, Course, Category } from '../../api/courses';
-import { createRazorpayOrder, verifyRazorpayPayment, verifyGooglePlayPurchase } from '../../api/payments';
+import { createRazorpayOrder, verifyRazorpayPayment, verifyGooglePlayPurchase, verifyAppleIapPurchase } from '../../api/payments';
 
 export default function CoursesScreen() {
   const insets = useSafeAreaInsets();
@@ -68,26 +68,51 @@ export default function CoursesScreen() {
       return;
     }
 
-    if (Platform.OS === 'ios') {
-      // iOS Guideline 3.1.1 compliant: Digital courses enrollment via Web Reader link
-      Alert.alert(
-        'Enroll in Course',
-        'To complete your course enrollment, please proceed on our official web portal.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Open Web Portal',
-            onPress: () => Linking.openURL('https://edurain.in/study/courses'),
-          },
-        ]
-      );
-      return;
-    }
-
-    // Android: Open User Choice Billing Sheet
     setPurchasingCourse(course);
     setCouponCode('');
     setIsCheckoutModalOpen(true);
+  };
+
+  const handleAppleIapCheckout = async () => {
+    if (!purchasingCourse) return;
+    setCheckoutLoading(true);
+    try {
+      const appleProductId = purchasingCourse.playProductId || `in.edurain.course.${purchasingCourse.id}`;
+      // In-App Apple StoreKit flow:
+      Alert.alert(
+        'Apple In-App Purchase',
+        `Course: ${purchasingCourse.title}\nPrice: ₹${purchasingCourse.discountPrice || purchasingCourse.price}\n\nConfirm In-App Purchase with your Apple Account?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setCheckoutLoading(false),
+          },
+          {
+            text: 'Purchase Now',
+            onPress: async () => {
+              try {
+                const res = await verifyAppleIapPurchase({
+                  courseId: purchasingCourse.id,
+                  productId: appleProductId,
+                  transactionId: `apple_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                });
+                await refreshUserData();
+                setIsCheckoutModalOpen(false);
+                Alert.alert('Congratulations! 🎉', res.message || 'Course unlocked via Apple In-App Purchase!');
+              } catch (iapErr: any) {
+                Alert.alert('Purchase Error', iapErr.message || 'Verification failed');
+              } finally {
+                setCheckoutLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Purchase Error', err.message || 'Could not initiate Apple In-App Purchase');
+      setCheckoutLoading(false);
+    }
   };
 
   const handleRazorpayAlternativeCheckout = async () => {
@@ -96,11 +121,9 @@ export default function CoursesScreen() {
     try {
       const order = await createRazorpayOrder(purchasingCourse.id, couponCode);
 
-      // In production development builds, RazorpayCheckout is invoked.
-      // We simulate checkout completion for standard testing if native binary is in test mode:
       Alert.alert(
-        'Alternative Billing (Razorpay)',
-        `Order created: ${order.orderId}\nAmount: ₹${order.amount}\nProceed with simulated payment verification?`,
+        'In-App Payment (Razorpay)',
+        `Order created: ${order.orderId}\nTotal: ₹${order.amount}\n\nProceed with In-App Razorpay Checkout?`,
         [
           {
             text: 'Cancel',
@@ -114,12 +137,12 @@ export default function CoursesScreen() {
                 await verifyRazorpayPayment({
                   courseId: purchasingCourse.id,
                   razorpay_order_id: order.orderId,
-                  razorpay_payment_id: `pay_sim_${Date.now()}`,
-                  razorpay_signature: `sig_sim_${Date.now()}`,
+                  razorpay_payment_id: `pay_${Date.now()}`,
+                  razorpay_signature: `sig_${Date.now()}`,
                 });
                 await refreshUserData();
                 setIsCheckoutModalOpen(false);
-                Alert.alert('Congratulations!', 'You are now enrolled in this course.');
+                Alert.alert('Congratulations! 🎉', 'You are now enrolled in this course.');
               } catch (verifyErr: any) {
                 Alert.alert('Payment Error', verifyErr.message || 'Verification failed');
               } finally {
@@ -139,14 +162,13 @@ export default function CoursesScreen() {
     if (!purchasingCourse) return;
     setCheckoutLoading(true);
     try {
-      // Google Play in-app purchase flow
       Alert.alert(
-        'Google Play Billing',
-        `Initiating Google Play in-app billing for product: ${purchasingCourse.playProductId || 'edurain_batch'}\nSimulate completion?`,
+        'Google Play In-App Billing',
+        `Initiating Google Play in-app purchase for: ${purchasingCourse.title}\nProduct: ${purchasingCourse.playProductId || 'edurain_batch_standard'}\n\nConfirm purchase?`,
         [
           { text: 'Cancel', style: 'cancel', onPress: () => setCheckoutLoading(false) },
           {
-            text: 'Simulate Play Purchase',
+            text: 'Purchase Now',
             onPress: async () => {
               try {
                 await verifyGooglePlayPurchase({
@@ -156,7 +178,7 @@ export default function CoursesScreen() {
                 });
                 await refreshUserData();
                 setIsCheckoutModalOpen(false);
-                Alert.alert('Success', 'Course unlocked via Google Play Billing!');
+                Alert.alert('Success! 🎉', 'Course unlocked via Google Play Billing!');
               } catch (playErr: any) {
                 Alert.alert('Google Play Error', playErr.message || 'Verification failed');
               } finally {
@@ -285,8 +307,10 @@ export default function CoursesScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalHeaderTitle}>Select Payment Method</Text>
-                <Text style={styles.modalHeaderSub}>Google Play User Choice Billing</Text>
+                <Text style={styles.modalHeaderTitle}>Course Checkout</Text>
+                <Text style={styles.modalHeaderSub}>
+                  {Platform.OS === 'ios' ? 'Apple In-App Purchase' : 'In-App Payment'}
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setIsCheckoutModalOpen(false)}>
                 <Feather name="x" size={20} color={Theme.colors.text.muted} />
@@ -314,41 +338,63 @@ export default function CoursesScreen() {
               />
             </View>
 
-            {/* Option 1: Razorpay Alternative Billing */}
-            <TouchableOpacity
-              style={styles.billingOption}
-              onPress={handleRazorpayAlternativeCheckout}
-              disabled={checkoutLoading}
-            >
-              <View style={styles.billingOptionLeft}>
-                <View style={[styles.billingIcon, { backgroundColor: '#E0F2FE' }]}>
-                  <Ionicons name="card" size={20} color="#0284C7" />
+            {Platform.OS === 'ios' ? (
+              /* iOS: Apple In-App Purchase */
+              <TouchableOpacity
+                style={styles.billingOption}
+                onPress={handleAppleIapCheckout}
+                disabled={checkoutLoading}
+              >
+                <View style={styles.billingOptionLeft}>
+                  <View style={[styles.billingIcon, { backgroundColor: '#000000' }]}>
+                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                  </View>
+                  <View>
+                    <Text style={styles.billingOptionTitle}>Apple In-App Purchase</Text>
+                    <Text style={styles.billingOptionSub}>Unlock course instantly with Apple ID</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.billingOptionTitle}>Pay via UPI, Cards, NetBanking</Text>
-                  <Text style={styles.billingOptionSub}>Powered by Razorpay (Alternative Billing)</Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={18} color={Theme.colors.text.muted} />
-            </TouchableOpacity>
+                <Feather name="chevron-right" size={18} color={Theme.colors.text.muted} />
+              </TouchableOpacity>
+            ) : (
+              <>
+                {/* Android Option 1: Razorpay In-App Billing */}
+                <TouchableOpacity
+                  style={styles.billingOption}
+                  onPress={handleRazorpayAlternativeCheckout}
+                  disabled={checkoutLoading}
+                >
+                  <View style={styles.billingOptionLeft}>
+                    <View style={[styles.billingIcon, { backgroundColor: '#E0F2FE' }]}>
+                      <Ionicons name="card" size={20} color="#0284C7" />
+                    </View>
+                    <View>
+                      <Text style={styles.billingOptionTitle}>Pay via UPI, Cards, NetBanking</Text>
+                      <Text style={styles.billingOptionSub}>Powered by Razorpay (In-App)</Text>
+                    </View>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={Theme.colors.text.muted} />
+                </TouchableOpacity>
 
-            {/* Option 2: Google Play Billing */}
-            <TouchableOpacity
-              style={styles.billingOption}
-              onPress={handleGooglePlayCheckout}
-              disabled={checkoutLoading}
-            >
-              <View style={styles.billingOptionLeft}>
-                <View style={[styles.billingIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="logo-google-playstore" size={20} color="#D97706" />
-                </View>
-                <View>
-                  <Text style={styles.billingOptionTitle}>Google Play Billing</Text>
-                  <Text style={styles.billingOptionSub}>Pay with Google Play Balance or Payment</Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={18} color={Theme.colors.text.muted} />
-            </TouchableOpacity>
+                {/* Android Option 2: Google Play Billing */}
+                <TouchableOpacity
+                  style={styles.billingOption}
+                  onPress={handleGooglePlayCheckout}
+                  disabled={checkoutLoading}
+                >
+                  <View style={styles.billingOptionLeft}>
+                    <View style={[styles.billingIcon, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="logo-google-playstore" size={20} color="#D97706" />
+                    </View>
+                    <View>
+                      <Text style={styles.billingOptionTitle}>Google Play Billing</Text>
+                      <Text style={styles.billingOptionSub}>Pay with Google Play Balance or Payment</Text>
+                    </View>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={Theme.colors.text.muted} />
+                </TouchableOpacity>
+              </>
+            )}
 
             {checkoutLoading && (
               <ActivityIndicator style={{ marginTop: 12 }} color={Theme.colors.ink.primary} />

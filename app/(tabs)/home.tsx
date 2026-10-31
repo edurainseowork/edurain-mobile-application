@@ -7,28 +7,36 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Linking,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
+import { AppHeader } from '../../components/Home/AppHeader';
+import { fetchBanners, Banner } from '../../api/courses';
 import { fetchNotifications, NotificationItem } from '../../api/notifications';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { user, goal, activeCourse, enrolledIds, refreshUserData } = useApp();
+  const { user, goal, activeCourse, refreshUserData } = useApp();
   const [refreshing, setRefreshing] = useState(false);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
 
   const loadData = async () => {
     try {
-      const [notifs] = await Promise.all([
+      const [bannerList, notifList] = await Promise.all([
+        fetchBanners().catch(() => []),
         fetchNotifications().catch(() => []),
-        refreshUserData(),
+        refreshUserData().catch(() => {}),
       ]);
-      setNotifications(notifs);
+      setBanners(bannerList);
+      setNotifications(notifList);
     } catch {}
   };
 
@@ -42,195 +50,209 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  const liveClasses = notifications
-    .filter((n) => n.liveClass && n.liveClass.status !== 'ended')
-    .map((n) => n.liveClass!);
-
-  const initials = (user?.name || 'ST')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('');
+  const studentName = user?.name ? user.name.split(' ')[0] : 'Student';
+  const targetGoal = goal?.name || 'JEE';
+  const currentBatch = activeCourse?.title || 'Engineering bno';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Navigation Bar */}
-      <View style={styles.topBar}>
-        <View style={styles.profileHeader}>
-          {user?.photo ? (
-            <Image source={{ uri: user.photo }} style={styles.avatarImg} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          )}
-          <View>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.userName}>{user?.name || 'Aspirant'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.topRightActions}>
-          {/* Target Cohort Badge */}
-          <TouchableOpacity
-            style={styles.goalBadge}
-            onPress={() => router.push('/(tabs)/courses')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="flag" size={12} color={Theme.colors.ink.primary} />
-            <Text style={styles.goalBadgeText}>{goal?.name || 'Set Goal'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Top Header */}
+      <AppHeader
+        unreadCount={notifications.filter((n) => !n.isRead).length}
+        onSearchPress={() => router.push('/(tabs)/courses')}
+        onNotificationsPress={() => router.push('/(tabs)/profile')}
+        onProfilePress={() => router.push('/(tabs)/profile')}
+      />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Theme.colors.ink.primary]} />}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 80 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Theme.colors.ink.primary]} />}
       >
-        {/* Streak & Motivation Banner */}
-        <View style={styles.streakCard}>
-          <View style={styles.streakLeft}>
-            <View style={styles.flameIconWrap}>
-              <Ionicons name="flame" size={24} color="#FF6B4A" />
-            </View>
-            <View>
-              <Text style={styles.streakNumber}>{user?.streakCount || 1} Day Streak</Text>
-              <Text style={styles.streakSub}>Consistency is key to cracking your goal!</Text>
-            </View>
-          </View>
-          <View style={styles.streakBadge}>
-            <Text style={styles.streakBadgeText}>ON TRACK</Text>
-          </View>
-        </View>
-
-        {/* Active Batch Hero Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>YOUR ACTIVE BATCH</Text>
-        </View>
-
-        {activeCourse ? (
-          <View style={styles.activeCourseCard}>
-            <View style={styles.activeCourseTop}>
-              <View style={styles.activeBatchBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={Theme.colors.accent.emerald} />
-                <Text style={styles.activeBatchBadgeText}>ENROLLED & ACTIVE</Text>
-              </View>
-              <Text style={styles.activeBatchCategory}>{activeCourse.category}</Text>
-            </View>
-
-            <Text style={styles.activeBatchTitle}>{activeCourse.title}</Text>
-            <Text style={styles.activeBatchInstructor}>
-              By {activeCourse.instructorName || 'Senior Faculty'}
+        {/* Welcome Greeting Banner */}
+        <View style={styles.greetingSection}>
+          <Text style={styles.welcomeText}>
+            Welcome back, <Text style={styles.nameHighlight}>{studentName}</Text>
+          </Text>
+          <View style={styles.targetRow}>
+            <Text style={styles.targetLabel}>
+              Target: <Text style={styles.targetValue}>{targetGoal}</Text> • Current Batch:{' '}
+              <Text style={styles.targetValue}>{currentBatch}</Text>
             </Text>
+          </View>
+        </View>
 
-            {/* Progress Indicator */}
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBarBackground}>
-                <View style={[styles.progressBarFill, { width: '45%' }]} />
-              </View>
-              <Text style={styles.progressText}>45% Completed</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.resumeButton}
-              onPress={() => router.push(`/course/${activeCourse.id}`)}
-              activeOpacity={0.85}
+        {/* Banner Carousel */}
+        {banners.length > 0 ? (
+          <View style={styles.bannerContainer}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={(e) => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 32));
+                setActiveBannerIndex(idx);
+              }}
+              scrollEventThrottle={16}
             >
-              <Ionicons name="play" size={18} color="#FFFFFF" />
-              <Text style={styles.resumeButtonText}>Resume Next Lecture</Text>
-            </TouchableOpacity>
+              {banners.map((b) => (
+                <TouchableOpacity
+                  key={b.id}
+                  activeOpacity={0.9}
+                  style={styles.bannerCard}
+                  onPress={() => router.push('/(tabs)/courses')}
+                >
+                  <Image source={{ uri: b.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {banners.length > 1 && (
+              <View style={styles.dotsRow}>
+                {banners.map((_, i) => (
+                  <View key={i} style={[styles.dot, activeBannerIndex === i && styles.activeDot]} />
+                ))}
+              </View>
+            )}
           </View>
         ) : (
-          <View style={styles.emptyBatchCard}>
-            <Ionicons name="school-outline" size={36} color={Theme.colors.ink.soft} />
-            <Text style={styles.emptyBatchTitle}>No Active Course Selected</Text>
-            <Text style={styles.emptyBatchSub}>
-              Explore our structured batches aligned with your {goal?.name || 'exam'} target.
-            </Text>
-            <TouchableOpacity
-              style={styles.exploreBatchBtn}
-              onPress={() => router.push('/(tabs)/courses')}
-            >
-              <Text style={styles.exploreBatchBtnText}>Explore Available Courses</Text>
-              <Feather name="arrow-right" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Live Classes (if any scheduled or live) */}
-        {liveClasses.length > 0 && (
-          <View style={styles.liveClassesSection}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.liveBadgeRow}>
-                <View style={styles.liveDot} />
-                <Text style={styles.sectionTitle}>LIVE SESSIONS</Text>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.defaultPromoBanner}
+            onPress={() => router.push('/(tabs)/courses')}
+          >
+            <View style={styles.promoTextWrap}>
+              <View style={styles.promoBadge}>
+                <Text style={styles.promoBadgeText}>NEET & JEE 2027-28</Text>
               </View>
+              <Text style={styles.promoTitle}>Rank Booster Batch Open</Text>
+              <Text style={styles.promoSub}>Live Masterclasses & 1-on-1 Mentorship</Text>
             </View>
-
-            {liveClasses.map((lc) => (
-              <View key={lc.id} style={styles.liveClassCard}>
-                <View style={styles.liveClassInfo}>
-                  <Text style={styles.liveClassTitle}>{lc.title}</Text>
-                  <Text style={styles.liveClassStatus}>
-                    {lc.status === 'live' ? '🔴 Live Right Now' : 'Scheduled Soon'}
-                  </Text>
-                </View>
-
-                {lc.meetUrl && (
-                  <TouchableOpacity
-                    style={styles.joinLiveBtn}
-                    onPress={() => lc.meetUrl && Linking.openURL(lc.meetUrl)}
-                  >
-                    <Text style={styles.joinLiveBtnText}>Join Class</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </View>
+          </TouchableOpacity>
         )}
 
-        {/* Quick Access Tools */}
+        {/* Features Section Header */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>STUDY RESOURCES</Text>
+          <Feather name="cpu" size={18} color="#0F3C45" />
+          <Text style={styles.sectionTitle}>Features</Text>
         </View>
 
-        <View style={styles.quickGrid}>
+        {/* 3 Core Feature Cards */}
+        <View style={styles.featureCardsList}>
+          {/* Card 1: 1 to 1 Mentorship */}
           <TouchableOpacity
-            style={styles.quickCard}
+            style={styles.featureCard}
+            activeOpacity={0.85}
+            onPress={() => router.push('/mentorship')}
+          >
+            <View style={styles.featureIconWrap}>
+              <Feather name="users" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>1 to 1 Mentorship</Text>
+              <Text style={styles.featureDesc}>
+                Personalized 1-on-1 strategy, rank roadmap & study motivation
+              </Text>
+            </View>
+            <View style={styles.arrowCircle}>
+              <Feather name="chevron-right" size={16} color="#64748B" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Card 2: Ask Your Doubt */}
+          <TouchableOpacity
+            style={styles.featureCard}
+            activeOpacity={0.85}
+            onPress={() => router.push('/doubt' as any)}
+          >
+            <View style={styles.featureIconWrap}>
+              <Feather name="help-circle" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>Ask Your Doubt</Text>
+              <Text style={styles.featureDesc}>
+                Snap a photo or chat with educators for instant step-by-step solutions
+              </Text>
+            </View>
+            <View style={styles.arrowCircle}>
+              <Feather name="chevron-right" size={16} color="#64748B" />
+            </View>
+          </TouchableOpacity>
+
+          {/* Card 3: EduAI Tutor */}
+          <TouchableOpacity
+            style={styles.featureCard}
+            activeOpacity={0.85}
+            onPress={() => router.push('/ai-tutor' as any)}
+          >
+            <View style={styles.featureIconWrap}>
+              <MaterialCommunityIcons name="robot" size={24} color="#FFFFFF" />
+            </View>
+            <View style={styles.featureContent}>
+              <Text style={styles.featureTitle}>EduAI Tutor</Text>
+              <Text style={styles.featureDesc}>
+                Adaptive AI problem-solver, revision quizzes & 24/7 concept breakdown
+              </Text>
+            </View>
+            <View style={styles.arrowCircle}>
+              <Feather name="chevron-right" size={16} color="#64748B" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Library Section Header */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <Feather name="book-open" size={18} color="#0F3C45" />
+          <Text style={styles.sectionTitle}>Library</Text>
+        </View>
+
+        {/* Library Cards Grid */}
+        <View style={styles.libraryGrid}>
+          <TouchableOpacity
+            style={styles.libraryCard}
+            activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/library')}
-            activeOpacity={0.8}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: '#EEF2FF' }]}>
-              <Feather name="book" size={20} color="#4F46E5" />
+            <View style={[styles.libraryIconBox, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="book" size={22} color="#D97706" />
             </View>
-            <Text style={styles.quickCardTitle}>E-Books</Text>
-            <Text style={styles.quickCardSub}>Digital Notes</Text>
+            <Text style={styles.libraryCardTitle}>Course Notes</Text>
+            <Text style={styles.libraryCardSub}>PDFs & Modules</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.quickCard}
+            style={styles.libraryCard}
+            activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/courses')}
-            activeOpacity={0.8}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: '#ECFDF5' }]}>
-              <Ionicons name="layers-outline" size={20} color="#059669" />
+            <View style={[styles.libraryIconBox, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="trophy" size={22} color="#0284C7" />
             </View>
-            <Text style={styles.quickCardTitle}>All Batches</Text>
-            <Text style={styles.quickCardSub}>Browse Syllabus</Text>
+            <Text style={styles.libraryCardTitle}>Test Series</Text>
+            <Text style={styles.libraryCardSub}>All India Mocks</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.quickCard}
-            onPress={() => router.push('/(tabs)/profile')}
-            activeOpacity={0.8}
+            style={styles.libraryCard}
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/courses')}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: '#FEF3C7' }]}>
-              <Feather name="award" size={20} color="#D97706" />
+            <View style={[styles.libraryIconBox, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="videocam" size={22} color="#16A34A" />
             </View>
-            <Text style={styles.quickCardTitle}>My Standing</Text>
-            <Text style={styles.quickCardSub}>Profile & Stats</Text>
+            <Text style={styles.libraryCardTitle}>Live Classes</Text>
+            <Text style={styles.libraryCardSub}>Recorded Vault</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.libraryCard}
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <View style={[styles.libraryIconBox, { backgroundColor: '#F3E8FF' }]}>
+              <Ionicons name="ribbon" size={22} color="#9333EA" />
+            </View>
+            <Text style={styles.libraryCardTitle}>Purchases</Text>
+            <Text style={styles.libraryCardSub}>Invoices & Access</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -241,330 +263,199 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Theme.colors.paper.light,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: Theme.colors.paper.light,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: Theme.colors.ink.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarImg: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontFamily: Theme.fonts.bold,
-    fontSize: 16,
-  },
-  welcomeText: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.secondary,
-  },
-  userName: {
-    fontSize: 17,
-    fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.deep,
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  goalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: 'rgba(23, 90, 103, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-    ...Theme.shadows.subtle,
-  },
-  goalBadgeText: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.semiBold,
-    color: Theme.colors.ink.primary,
+    backgroundColor: '#F0F4F2',
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  streakCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    marginTop: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 107, 74, 0.2)',
-    ...Theme.shadows.subtle,
+  greetingSection: {
+    marginTop: 6,
+    marginBottom: 14,
   },
-  streakLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  welcomeText: {
+    fontSize: 20,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
+    letterSpacing: 0.2,
   },
-  flameIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#FFF1EE',
-    justifyContent: 'center',
-    alignItems: 'center',
+  nameHighlight: {
+    color: '#B45309', // Warm amber gold
   },
-  streakNumber: {
-    fontSize: 16,
+  targetRow: {
+    marginTop: 4,
+  },
+  targetLabel: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+  },
+  targetValue: {
     fontFamily: Theme.fonts.bold,
     color: '#0F3C45',
   },
-  streakSub: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.muted,
-  },
-  streakBadge: {
-    backgroundColor: '#FFF1EE',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  streakBadgeText: {
-    fontSize: 10,
-    fontFamily: Theme.fonts.bold,
-    color: '#FF6B4A',
-  },
-  sectionHeader: {
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.soft,
-    letterSpacing: 0.8,
-  },
-  activeCourseCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(23, 90, 103, 0.12)',
-    marginBottom: 24,
-    ...Theme.shadows.card,
-  },
-  activeCourseTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  activeBatchBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 4,
-  },
-  activeBatchBadgeText: {
-    fontSize: 10,
-    fontFamily: Theme.fonts.bold,
-    color: '#059669',
-  },
-  activeBatchCategory: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.medium,
-    color: Theme.colors.text.muted,
-  },
-  activeBatchTitle: {
-    fontSize: 18,
-    fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.deep,
-    lineHeight: 24,
-    marginBottom: 4,
-  },
-  activeBatchInstructor: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.secondary,
-    marginBottom: 16,
-  },
-  progressContainer: {
-    marginBottom: 16,
-  },
-  progressBarBackground: {
-    height: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: Theme.colors.ink.primary,
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.medium,
-    color: Theme.colors.text.muted,
-  },
-  resumeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Theme.colors.ink.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  resumeButtonText: {
-    color: '#FFFFFF',
-    fontFamily: Theme.fonts.bold,
-    fontSize: 14,
-  },
-  emptyBatchCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    textAlign: 'center',
-    marginBottom: 24,
-    ...Theme.shadows.subtle,
-  },
-  emptyBatchTitle: {
-    fontSize: 16,
-    fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.deep,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  emptyBatchSub: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.muted,
-    textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  exploreBatchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Theme.colors.ink.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 8,
-  },
-  exploreBatchBtnText: {
-    color: '#FFFFFF',
-    fontFamily: Theme.fonts.bold,
-    fontSize: 13,
-  },
-  liveClassesSection: {
+  bannerContainer: {
     marginBottom: 20,
   },
-  liveBadgeRow: {
+  bannerCard: {
+    width: SCREEN_WIDTH - 32,
+    height: 120,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#0F3C45',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  dotsRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
+    marginTop: 8,
   },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
   },
-  liveClassCard: {
+  activeDot: {
+    width: 16,
+    backgroundColor: '#0F3C45',
+  },
+  defaultPromoBanner: {
+    width: '100%',
+    height: 110,
+    borderRadius: 18,
+    backgroundColor: '#0F3C45',
+    padding: 18,
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  promoTextWrap: {
+    gap: 4,
+  },
+  promoBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  promoBadgeText: {
+    fontSize: 10,
+    fontFamily: Theme.fonts.bold,
+    color: '#FFFFFF',
+  },
+  promoTitle: {
+    fontSize: 16,
+    fontFamily: Theme.fonts.bold,
+    color: '#FFFFFF',
+  },
+  promoSub: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.regular,
+    color: '#94A3B8',
+  },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
+  },
+  featureCardsList: {
+    gap: 12,
+  },
+  featureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    shadowColor: '#0F3C45',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 14,
+  },
+  featureIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#0D9488', // Teal
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureContent: {
+    flex: 1,
+    gap: 2,
+  },
+  featureTitle: {
+    fontSize: 15,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
+  },
+  featureDesc: {
+    fontSize: 11.5,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  arrowCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  libraryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  libraryCard: {
+    width: (SCREEN_WIDTH - 44) / 2,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#FEE2E2',
-    marginBottom: 10,
-    ...Theme.shadows.subtle,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F3C45',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    gap: 6,
   },
-  liveClassInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  liveClassTitle: {
-    fontSize: 14,
-    fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.deep,
-  },
-  liveClassStatus: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.regular,
-    color: '#EF4444',
-    marginTop: 2,
-  },
-  joinLiveBtn: {
-    backgroundColor: Theme.colors.ink.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  joinLiveBtnText: {
-    color: '#FFFFFF',
-    fontFamily: Theme.fonts.bold,
-    fontSize: 12,
-  },
-  quickGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  quickCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    ...Theme.shadows.subtle,
-  },
-  quickIconWrap: {
-    width: 42,
-    height: 42,
+  libraryIconBox: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  quickCardTitle: {
-    fontSize: 13,
+  libraryCardTitle: {
+    fontSize: 14,
     fontFamily: Theme.fonts.bold,
-    color: Theme.colors.ink.deep,
+    color: '#0F3C45',
   },
-  quickCardSub: {
+  libraryCardSub: {
     fontSize: 11,
     fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.muted,
+    color: '#64748B',
   },
 });
-

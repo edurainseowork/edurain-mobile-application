@@ -15,17 +15,20 @@ export const Theme = {
     // Paper / canvas background
     paper: {
       cream: '#EAE3DE',     // Warm accent card
-      light: '#F4F0EC',     // Main screen background
+      light: '#F0F4F2',     // Soft mint screen background matching web app
+      mint: '#F0F4F2',      // Dedicated mint background
       white: '#FFFFFF',     // Clean card surface
       dark: '#121212',      // Low-light surface
     },
     // Functional accents
     accent: {
+      teal: '#0D9488',      // Feature card icon background
       emerald: '#10B981',   // Success, enrolled, completed
       gold: '#EAB308',      // Badges, stars
       amber: '#F59E0B',     // Lock / Soon badges
       flame: '#FF6B4A',     // Streak flame
       error: '#EF4444',     // Errors
+      verified: '#0284C7',  // Blue verified badge
       border: 'rgba(23, 90, 103, 0.15)',
     },
     // Translucent glass layers

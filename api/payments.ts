@@ -51,3 +51,17 @@ export async function verifyGooglePlayPurchase(params: {
   return res;
 }
 
+export async function verifyAppleIapPurchase(params: {
+  courseId: number;
+  productId: string;
+  transactionId: string;
+  receiptData?: string;
+}): Promise<{ success: boolean; message?: string }> {
+  const res = await apiFetch<{ success: boolean; message?: string }>('/api/apple-iap/verify', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+  return res;
+}
+
+

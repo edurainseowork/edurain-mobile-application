@@ -1,12 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from 'firebase/auth';
+// @ts-ignore
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { apiFetch, API_BASE_URL } from '../api/client';
 import {
