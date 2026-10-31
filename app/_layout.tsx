@@ -42,6 +42,16 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="doubt" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="mentorship" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="ai-tutor" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="test-series" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="bookmarks" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="ebooks" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="course/[id]" options={{ presentation: 'card' }} />
         </Stack>
       </AppProvider>

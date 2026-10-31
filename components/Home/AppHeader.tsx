@@ -137,7 +137,9 @@ export function AppHeader({
 
   const navigateFromDrawer = (route: string) => {
     setDrawerVisible(false);
-    router.push(route as any);
+    setTimeout(() => {
+      router.push(route as any);
+    }, 150);
   };
 
   return (

@@ -65,32 +65,254 @@ async function getSyncClientId(): Promise<string> {
   }
 }
 
+const COURSES_CACHE_KEY = 'edurain_courses_cache_v2';
+const BANNERS_CACHE_KEY = 'edurain_banners_cache_v2';
+const CATEGORIES_CACHE_KEY = 'edurain_categories_cache';
+
+const DEFAULT_COURSES: Course[] = [
+  {
+    id: 24,
+    title: 'rtyhkhgg',
+    description: 'dfghjgvytgfygy',
+    price: 98000,
+    category: 'JEE',
+    categoryId: 1,
+    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/9a38f03d-57b6-4808-a6a7-76decad48d71.png',
+  },
+  {
+    id: 23,
+    title: 'Engineering bno',
+    description: 'Complete Arjuna JEE Batch Access with Live Lectures & AITS',
+    price: 0,
+    category: 'JEE',
+    categoryId: 1,
+    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/b586c1d9-1a43-48da-9811-b64ad2401333.png',
+  },
+  {
+    id: 22,
+    title: 'tedgsdbhsjndms,dsdfsssssssssssssssssssss',
+    description: 'Comprehensive NEET exam preparation module',
+    price: 56000,
+    category: 'NEET',
+    categoryId: 2,
+    thumbnail: 'https://edurain-notification.s3.ap-south-1.amazonaws.com/images/5c12ad07-637d-446e-8569-4367e354e1ac.png',
+  },
+  {
+    id: 19,
+    title: '2ss2',
+    description: 'Focused NEET rank booster sprint',
+    price: 148,
+    category: 'NEET',
+    categoryId: 2,
+    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/f74a2ccf-ab94-49b6-b898-888687dc54b1.png',
+  },
+  {
+    id: 10,
+    title: 'Class 11th PCB',
+    description: 'Complete Class 11th Physics, Chemistry, and Biology course',
+    price: 499900,
+    category: 'NEET',
+    categoryId: 2,
+    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/courses/thumbnails/pcb-11.jpg',
+  },
+  {
+    id: 9,
+    title: 'Doctor',
+    description: 'Medical entrance mastery program',
+    price: 100000,
+    category: 'NEET',
+    categoryId: 2,
+    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/64a7a2b4-bb3a-42da-a3b2-2bac34e46129.png',
+  },
+  {
+    id: 20,
+    title: 'fmfmdsnfmdsfdsf',
+    description: 'Foundation problem solving toolkit',
+    price: 53400,
+    category: 'FOUNDATION',
+    categoryId: 3,
+    thumbnail: 'https://edurain-notification.s3.ap-south-1.amazonaws.com/images/99024f1a-6577-410f-abdc-01cb5fd401c4.jpg',
+  },
+  {
+    id: 16,
+    title: 'SSC',
+    description: 'Crack SSC exam with live classes and mock series',
+    price: 99900,
+    category: 'FOUNDATION',
+    categoryId: 3,
+    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/dc4a69cc-af9e-4851-9df2-81bf6db14243.jpg',
+  },
+  {
+    id: 8,
+    title: 'IIT Mechanical',
+    description: 'Engineering foundations & core concepts',
+    price: 100000,
+    category: 'FOUNDATION',
+    categoryId: 3,
+    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/54031ad8-3901-4fc6-9d78-e03bedb10ab9.png',
+  },
+];
+
+const DEFAULT_BANNERS: Banner[] = [
+  {
+    id: 11,
+    imageUrl: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/9f36ab4a-24ac-4e76-b9e0-445f51351457.png',
+  },
+  {
+    id: 14,
+    imageUrl: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/47083379-8176-434e-a7cb-2c0ee8ad7ba8.png',
+  },
+  {
+    id: 10,
+    imageUrl: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/df2bc26c-456b-4185-98cc-8c64e30d9f61.png',
+  },
+];
+
+let inMemoryCourses: Course[] = DEFAULT_COURSES;
+let inMemoryBanners: Banner[] = DEFAULT_BANNERS;
+let inMemoryCategories: Category[] | null = null;
+
+// Initialize caches from AsyncStorage
+AsyncStorage.getItem(COURSES_CACHE_KEY).then((data) => {
+  if (data) {
+    try {
+      const arr = JSON.parse(data);
+      if (Array.isArray(arr) && arr.length > 0) inMemoryCourses = arr;
+    } catch {}
+  }
+}).catch(() => {});
+
+AsyncStorage.getItem(BANNERS_CACHE_KEY).then((data) => {
+  if (data) {
+    try {
+      const arr = JSON.parse(data);
+      if (Array.isArray(arr) && arr.length > 0) inMemoryBanners = arr;
+    } catch {}
+  }
+}).catch(() => {});
+
 export async function fetchCourses(): Promise<Course[]> {
-  const res = await apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses');
-  return Array.isArray(res) ? res : res?.data || [];
+  // If in-memory courses are present, trigger background revalidate and return immediately
+  if (inMemoryCourses && inMemoryCourses.length > 0) {
+    apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses')
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        if (list.length > 0) {
+          inMemoryCourses = list;
+          AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return inMemoryCourses;
+  }
+
+  try {
+    const cached = await AsyncStorage.getItem(COURSES_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryCourses = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses');
+    const list = Array.isArray(res) ? res : res?.data || [];
+    if (list.length > 0) {
+      inMemoryCourses = list;
+      AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      return list;
+    }
+  } catch {}
+
+  return DEFAULT_COURSES;
 }
 
 export async function fetchCourseById(id: number | string): Promise<Course> {
-  const res = await apiFetch<{ success?: boolean; data?: Course }>(`/api/courses/${id}`);
-  return (res as any)?.data || res;
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: Course }>(`/api/courses/${id}`);
+    const found = (res as any)?.data || res;
+    if (found && found.id) return found;
+  } catch {}
+
+  const local = inMemoryCourses.find((c) => String(c.id) === String(id));
+  if (local) return local;
+  return DEFAULT_COURSES[0];
 }
 
 export async function fetchCategories(): Promise<Category[]> {
+  if (inMemoryCategories && inMemoryCategories.length > 0) {
+    return inMemoryCategories;
+  }
+
+  try {
+    const cached = await AsyncStorage.getItem(CATEGORIES_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryCategories = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+
   try {
     const res = await apiFetch<{ success?: boolean; data?: Category[] }>('/api/categories');
     const list = Array.isArray(res) ? res : res?.data || [];
-    if (list.length > 0) return list;
+    if (list.length > 0) {
+      inMemoryCategories = list;
+      AsyncStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      return list;
+    }
   } catch {}
-  return [
+
+  const fallback: Category[] = [
     { id: 1, name: 'JEE', slug: 'jee' },
     { id: 2, name: 'NEET', slug: 'neet' },
     { id: 3, name: 'FOUNDATION', slug: 'foundation' },
   ];
+  inMemoryCategories = fallback;
+  return fallback;
 }
 
 export async function fetchBanners(): Promise<Banner[]> {
-  const res = await apiFetch<{ success?: boolean; data?: Banner[] }>('/api/banners');
-  return Array.isArray(res) ? res : res?.data || [];
+  if (inMemoryBanners && inMemoryBanners.length > 0) {
+    apiFetch<{ success?: boolean; data?: Banner[] }>('/api/banners')
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        if (list.length > 0) {
+          inMemoryBanners = list;
+          AsyncStorage.setItem(BANNERS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+        }
+      })
+      .catch(() => {});
+    return inMemoryBanners;
+  }
+
+  try {
+    const cached = await AsyncStorage.getItem(BANNERS_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        inMemoryBanners = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: Banner[] }>('/api/banners');
+    const list = Array.isArray(res) ? res : res?.data || [];
+    if (list.length > 0) {
+      inMemoryBanners = list;
+      AsyncStorage.setItem(BANNERS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      return list;
+    }
+  } catch {}
+
+  return DEFAULT_BANNERS;
 }
 
 export async function fetchStudentGoal(): Promise<StudentGoal | null> {

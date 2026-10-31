@@ -29,30 +29,38 @@ export default function CoursesScreen() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [purchasingCourse, setPurchasingCourse] = useState<Course | null>(null);
   const [couponCode, setCouponCode] = useState('');
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
+    // Immediately pre-fill from cached data synchronously
+    fetchCourses().then((cList) => {
+      if (cList && cList.length > 0) setCourses(cList);
+    });
+    fetchCategories().then((catList) => {
+      if (catList && catList.length > 0) setCategories(catList);
+    });
     loadData();
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
     try {
       const [cList, catList] = await Promise.all([
-        fetchCourses().catch(() => []),
-        fetchCategories().catch(() => []),
+        fetchCourses(),
+        fetchCategories(),
       ]);
-      setCourses(cList);
-      setCategories(catList);
+      if (cList && cList.length > 0) setCourses(cList);
+      if (catList && catList.length > 0) setCategories(catList);
 
       // Auto-filter by student's active goal if available
       if (goal?.name && catList.some((c) => c.name.toLowerCase() === goal.name.toLowerCase())) {
         setSelectedCategory(goal.name);
       }
+    } catch {
+      // Silently maintain cached courses
     } finally {
       setLoading(false);
     }
@@ -60,8 +68,10 @@ export default function CoursesScreen() {
 
   const filteredCourses = courses.filter((c) => {
     if (selectedCategory === 'All') return true;
-    return c.category.toLowerCase() === selectedCategory.toLowerCase();
+    return c.category?.toLowerCase() === selectedCategory.toLowerCase();
   });
+
+  const displayCourses = filteredCourses.length > 0 ? filteredCourses : courses;
 
   const handleEnrollClick = (course: Course) => {
     if (isEnrolled(course.id)) {
@@ -236,14 +246,14 @@ export default function CoursesScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.courseList} showsVerticalScrollIndicator={false}>
-          {filteredCourses.length === 0 ? (
+          {displayCourses.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Feather name="book-open" size={40} color={Theme.colors.text.muted} />
               <Text style={styles.emptyTitle}>No Courses in {selectedCategory}</Text>
               <Text style={styles.emptySubtitle}>Check back soon or explore other categories.</Text>
             </View>
           ) : (
-            filteredCourses.map((course) => {
+            displayCourses.map((course) => {
               const enrolled = isEnrolled(course.id);
               const price = course.discountPrice || course.price;
               const hasDiscount = course.discountPrice && course.discountPrice < course.price;

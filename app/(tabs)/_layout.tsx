@@ -56,18 +56,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Feather name="check-circle" size={size} color={color as string} />,
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="library"
-        options={{
-          href: null,
-        }}
-      />
     </Tabs>
   );
 }

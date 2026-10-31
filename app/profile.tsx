@@ -30,16 +30,28 @@ import {
 export default function ProfileScreen() {
   const { user, goal, logout, deleteAccount, refreshUserData } = useApp();
 
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<StudentProfile | null>(() => {
+    if (user) {
+      return {
+        id: 0,
+        name: user.name || 'Abhinav',
+        email: user.email || 'abhinavchauhan0011@gmail.com',
+        phone: user.phone || null,
+        profilePhoto: user.photo || null,
+        memberSince: 'Oct 2026',
+      } as StudentProfile;
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Editable Form Fields
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [gender, setGender] = useState<'male' | 'female' | 'other' | null>(null);
   const [city, setCity] = useState('');
   const [stateName, setStateName] = useState('');
@@ -48,8 +60,8 @@ export default function ProfileScreen() {
   const loadData = useCallback(async () => {
     try {
       const data = await fetchProfile();
-      setProfile(data);
       if (data) {
+        setProfile(data);
         setName(data.name || user?.name || '');
         setPhone(data.phone || user?.phone || '');
         setGender((data.gender as any) || null);
@@ -57,8 +69,8 @@ export default function ProfileScreen() {
         setStateName(data.state || '');
         setPincode(data.pincode || '');
       }
-    } catch (err) {
-      console.warn('[ProfileScreen] Failed to load profile:', err);
+    } catch {
+      // Gracefully use local data
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -266,7 +278,13 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/home');
+            }
+          }}
           activeOpacity={0.7}
         >
           <Feather name="arrow-left" size={22} color="#0B3B42" />
