@@ -50,6 +50,8 @@ export default function RootLayout() {
           <Stack.Screen name="test-series" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="bookmarks" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="ebooks" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="class-material" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="live-classes" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="terms" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="privacy" options={{ animation: 'slide_from_right' }} />

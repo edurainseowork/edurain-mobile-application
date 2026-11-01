@@ -12,15 +12,18 @@ import {
   Alert,
   Linking,
   TextInput,
+  Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
-import { fetchCourses, fetchCategories, Course, Category } from '../../api/courses';
+import { fetchCourses, fetchCategories, fetchBanners, Course, Category, Banner } from '../../api/courses';
 import { createRazorpayOrder, verifyRazorpayPayment, verifyGooglePlayPurchase, verifyAppleIapPurchase } from '../../api/payments';
 import { AppHeader } from '../../components/Home/AppHeader';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function CoursesScreen() {
   const insets = useSafeAreaInsets();
@@ -28,6 +31,8 @@ export default function CoursesScreen() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [loading, setLoading] = useState(false);
   const [purchasingCourse, setPurchasingCourse] = useState<Course | null>(null);
@@ -43,17 +48,33 @@ export default function CoursesScreen() {
     fetchCategories().then((catList) => {
       if (catList && catList.length > 0) setCategories(catList);
     });
+    fetchBanners('mobile_courses').then((bList) => {
+      if (bList && bList.length > 0) {
+        setBanners(bList);
+      } else {
+        fetchBanners('home').then((hList) => {
+          if (hList && hList.length > 0) setBanners(hList);
+        });
+      }
+    });
     loadData();
   }, []);
 
   const loadData = async () => {
     try {
-      const [cList, catList] = await Promise.all([
+      const [cList, catList, bList] = await Promise.all([
         fetchCourses(),
         fetchCategories(),
+        fetchBanners('mobile_courses'),
       ]);
       if (cList && cList.length > 0) setCourses(cList);
       if (catList && catList.length > 0) setCategories(catList);
+      if (bList && bList.length > 0) {
+        setBanners(bList);
+      } else {
+        const homeBanners = await fetchBanners('home');
+        if (homeBanners && homeBanners.length > 0) setBanners(homeBanners);
+      }
 
       // Auto-filter by student's active goal if available
       if (goal?.name && catList.some((c) => c.name.toLowerCase() === goal.name.toLowerCase())) {
@@ -207,11 +228,39 @@ export default function CoursesScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <AppHeader />
-      {/* Header */}
+      {/* Header: Academic Batches (clean without subtitle) */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Academic Batches</Text>
-        <Text style={styles.headerSubtitle}>Comprehensive Preparation & Mentorship</Text>
       </View>
+
+      {/* Banner Carousel in 1.8:1 Ratio */}
+      {banners.length > 0 && (
+        <View style={styles.bannerContainer}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_WIDTH - 32));
+              setActiveBannerIndex(idx);
+            }}
+            scrollEventThrottle={16}
+          >
+            {banners.map((b) => (
+              <View key={b.id} style={styles.bannerCard}>
+                <Image source={{ uri: b.imageUrl }} style={styles.bannerImage} resizeMode="cover" />
+              </View>
+            ))}
+          </ScrollView>
+          {banners.length > 1 && (
+            <View style={styles.dotsRow}>
+              {banners.map((_, i) => (
+                <View key={i} style={[styles.dot, activeBannerIndex === i && styles.activeDot]} />
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Category Pills */}
       <View style={styles.categoriesWrap}>
@@ -433,11 +482,38 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.bold,
     color: Theme.colors.ink.deep,
   },
-  headerSubtitle: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text.secondary,
-    marginTop: 2,
+  bannerContainer: {
+    paddingHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  bannerCard: {
+    width: SCREEN_WIDTH - 32,
+    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0F3C45',
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#CBD5E1',
+  },
+  activeDot: {
+    backgroundColor: '#0F3C45',
+    width: 14,
   },
   categoriesWrap: {
     paddingVertical: 10,

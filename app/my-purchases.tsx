@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -17,8 +18,10 @@ import { Theme } from '../constants/theme';
 import {
   fetchCourses,
   fetchActiveCourse,
+  fetchBanners,
   setActiveCourse as setServerActiveCourse,
   Course,
+  Banner,
 } from '../api/courses';
 import { fetchProfile, StudentProfile } from '../api/profile';
 
@@ -88,13 +91,18 @@ export default function MyPurchasesScreen() {
   const [activatingId, setActivatingId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [enrolledList, setEnrolledList] = useState<EnrolledCourseItem[]>(DEFAULT_FALLBACK_ENROLLED);
+  const [purchasesBanners, setPurchasesBanners] = useState<Banner[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [profileData, allCourses] = await Promise.all([
+      const [profileData, allCourses, pBanners] = await Promise.all([
         fetchProfile().catch(() => null),
         fetchCourses().catch(() => []),
+        fetchBanners('mobile_purchases').catch(() => []),
       ]);
+      if (pBanners && pBanners.length > 0) {
+        setPurchasesBanners(pBanners);
+      }
 
       const items: EnrolledCourseItem[] = [];
       const seenIds = new Set<number>();
@@ -340,6 +348,19 @@ export default function MyPurchasesScreen() {
             <Text style={styles.exploreAllBtnText}>Explore All Courses</Text>
             <Feather name="arrow-right" size={15} color="#0B3B42" />
           </TouchableOpacity>
+
+          {/* Custom Purchases Banners (1.8:1 ratio) */}
+          {purchasesBanners.length > 0 && (
+            <View style={styles.purchasesBannerContainer}>
+              <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
+                {purchasesBanners.map((b) => (
+                  <View key={b.id} style={styles.purchasesBannerCard}>
+                    <Image source={{ uri: b.imageUrl }} style={styles.purchasesBannerImg} resizeMode="cover" />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Course Cards List */}
           <View style={styles.courseCardsList}>
@@ -683,6 +704,20 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontFamily: Theme.fonts.bold,
     color: '#0B3B42',
+  },
+  purchasesBannerContainer: {
+    marginBottom: 16,
+  },
+  purchasesBannerCard: {
+    width: SCREEN_WIDTH - 32,
+    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#0F3C45',
+  },
+  purchasesBannerImg: {
+    width: '100%',
+    height: '100%',
   },
 
   /* Cards List */

@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { AppHeader } from '../../components/Home/AppHeader';
 import { Theme } from '../../constants/theme';
@@ -19,8 +19,8 @@ export default function DailyDropScreen() {
   const handleNotifyPress = () => {
     setIsNotified(true);
     Alert.alert(
-      'Daily Drop Alert',
-      "You're on the priority list! We'll notify you as soon as the Daily Drop feature launches with daily flashcards and mock drills."
+      'Daily Drop Updates',
+      "You will receive notifications here as soon as new study updates are posted."
     );
   };
 
@@ -36,29 +36,34 @@ export default function DailyDropScreen() {
         <View style={styles.titleRow}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/home');
+              }
+            }}
             activeOpacity={0.7}
           >
-            <Feather name="arrow-left" size={18} color="#0B3B42" />
+            <Feather name="arrow-left" size={20} color="#0B3B42" />
           </TouchableOpacity>
           <Text style={styles.screenTitle}>Daily Drop</Text>
         </View>
 
-        <View style={styles.lockedHeroCard}>
-          <View style={styles.lockIconBox}>
-            <Feather name="zap" size={28} color="#0B3B42" />
-            <View style={styles.lockActiveDot} />
+        <View style={styles.card}>
+          <View style={styles.iconBox}>
+            <Feather name="bell" size={30} color="#0B3B42" />
           </View>
 
           <View style={styles.statusPill}>
-            <Text style={styles.statusPillText}>• LOCKED • COMING SOON</Text>
+            <Text style={styles.statusPillText}>COMING SOON</Text>
           </View>
 
-          <Text style={styles.heroTitle}>Daily Concept Drop</Text>
+          <Text style={styles.heroTitle}>Daily Drop</Text>
 
           <Text style={styles.heroDesc}>
-            This feature is currently under active development. Daily high-yield question drops,
-            bite-sized memory flashcards, and rapid speed drills will be available every morning.
+            Updates and study material announcements will be shared here.
+            Stay tuned for upcoming updates.
           </Text>
 
           <TouchableOpacity
@@ -68,66 +73,14 @@ export default function DailyDropScreen() {
           >
             <Feather
               name={isNotified ? 'check' : 'bell'}
-              size={18}
+              size={17}
               color="#FFFFFF"
               style={{ marginRight: 8 }}
             />
             <Text style={styles.notifyBtnText}>
-              {isNotified ? 'Notification Enabled' : 'Notify Me When Available'}
+              {isNotified ? 'Subscribed to Updates' : 'Notify Me of Updates'}
             </Text>
           </TouchableOpacity>
-
-          <View style={styles.altLinkRow}>
-            <Text style={styles.altLinkText}>Explore full courses instead? </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/courses')}>
-              <Text style={styles.altLinkHighlight}>Browse Courses →</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.featuresHeaderRow}>
-          <View style={styles.featuresHeaderLeft}>
-            <MaterialCommunityIcons name="star-shooting-outline" size={18} color="#0B3B42" />
-            <Text style={styles.featuresHeaderTitle}>What to Expect in Daily Drop</Text>
-          </View>
-        </View>
-
-        <View style={styles.featureCardsCol}>
-          <View style={styles.featureCard}>
-            <View style={styles.featureIconWrap}>
-              <Feather name="help-circle" size={22} color="#0EA5E9" />
-            </View>
-            <View style={styles.featureInfo}>
-              <Text style={styles.featureCardTitle}>5-Minute Daily Quiz</Text>
-              <Text style={styles.featureCardSubtitle}>
-                3 curated high-probability NEET & JEE questions delivered each morning
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.featureCard}>
-            <View style={styles.featureIconWrap}>
-              <Feather name="award" size={22} color="#0EA5E9" />
-            </View>
-            <View style={styles.featureInfo}>
-              <Text style={styles.featureCardTitle}>Streak & Daily Badges</Text>
-              <Text style={styles.featureCardSubtitle}>
-                Earn badges and track continuous retention alongside your peers
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.featureCard}>
-            <View style={styles.featureIconWrap}>
-              <Feather name="layers" size={22} color="#0EA5E9" />
-            </View>
-            <View style={styles.featureInfo}>
-              <Text style={styles.featureCardTitle}>Instant Formula Flashcards</Text>
-              <Text style={styles.featureCardSubtitle}>
-                Rapid formula revisions and organic reaction summary sheets
-              </Text>
-            </View>
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -144,178 +97,102 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 32,
-    paddingTop: 12,
+    paddingBottom: 40,
+    paddingTop: 8,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
     gap: 12,
+    marginBottom: 20,
+    marginTop: 4,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   screenTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontFamily: Theme.fonts.bold,
     color: '#0B3B42',
   },
-  lockedHeroCard: {
-    backgroundColor: '#FFFFFF',
+  card: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 24,
     padding: 24,
-    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-    marginBottom: 24,
+    shadowRadius: 16,
+    elevation: 3,
+    marginTop: 10,
   },
-  lockIconBox: {
+  iconBox: {
     width: 64,
     height: 64,
-    borderRadius: 18,
-    backgroundColor: '#FEF3C7',
+    borderRadius: 20,
+    backgroundColor: '#D1FAE5',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
     marginBottom: 16,
   },
-  lockActiveDot: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#F59E0B',
-  },
   statusPill: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 14,
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 20,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 14,
   },
   statusPillText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: Theme.fonts.bold,
-    color: '#D97706',
-    letterSpacing: 0.5,
+    color: '#0369A1',
+    letterSpacing: 0.8,
   },
   heroTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: Theme.fonts.bold,
-    color: '#0B3B42',
-    marginBottom: 12,
+    color: '#0B1C30',
+    marginBottom: 8,
     textAlign: 'center',
   },
   heroDesc: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: Theme.fonts.regular,
-    color: '#64748B',
+    color: '#475569',
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-    paddingHorizontal: 8,
+    lineHeight: 22,
+    marginBottom: 24,
+    maxWidth: 320,
   },
   notifyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B3B42',
-    paddingVertical: 14,
+    backgroundColor: '#0F3C45',
     paddingHorizontal: 24,
-    borderRadius: 14,
+    paddingVertical: 14,
+    borderRadius: 16,
     width: '100%',
-    marginBottom: 16,
   },
   notifyBtnDone: {
     backgroundColor: '#059669',
   },
   notifyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontFamily: Theme.fonts.bold,
-  },
-  altLinkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
-  altLinkText: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.regular,
-    color: '#64748B',
-  },
-  altLinkHighlight: {
-    fontSize: 13,
-    fontFamily: Theme.fonts.bold,
-    color: '#0B3B42',
-  },
-  featuresHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  featuresHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  featuresHeaderTitle: {
     fontSize: 14,
     fontFamily: Theme.fonts.bold,
-    color: '#0B3B42',
-  },
-  featureCardsCol: {
-    gap: 12,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  featureIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  featureInfo: {
-    flex: 1,
-  },
-  featureCardTitle: {
-    fontSize: 15,
-    fontFamily: Theme.fonts.bold,
-    color: '#0B3B42',
-    marginBottom: 2,
-  },
-  featureCardSubtitle: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.regular,
-    color: '#64748B',
-    lineHeight: 16,
+    color: '#FFFFFF',
   },
 });
-

@@ -230,7 +230,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.libraryGridCard}
             activeOpacity={0.85}
-            onPress={() => router.push('/ebooks' as any)}
+            onPress={() => router.push('/class-material' as any)}
           >
             <View style={[styles.librarySquareIcon, { backgroundColor: '#10B981' }]}>
               <Feather name="book" size={22} color="#FFFFFF" />
@@ -249,7 +249,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.libraryGridCard}
             activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/courses' as any)}
+            onPress={() => router.push('/live-classes' as any)}
           >
             <View style={[styles.librarySquareIcon, { backgroundColor: '#EF4444' }]}>
               <Feather name="video" size={22} color="#FFFFFF" />
@@ -327,8 +327,8 @@ const styles = StyleSheet.create({
   },
   bannerCard: {
     width: SCREEN_WIDTH - 32,
-    height: 120,
-    borderRadius: 18,
+    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0F3C45',
   },

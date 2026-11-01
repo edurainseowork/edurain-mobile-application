@@ -227,10 +227,10 @@ export async function fetchCourses(): Promise<Course[]> {
     }
   } catch {}
 
-  return DEFAULT_COURSES;
+  return inMemoryCourses;
 }
 
-export async function fetchCourseById(id: number | string): Promise<Course> {
+export async function fetchCourseById(id: number | string): Promise<Course | null> {
   try {
     const res = await apiFetch<{ success?: boolean; data?: Course }>(`/api/courses/${id}`);
     const found = (res as any)?.data || res;
@@ -239,7 +239,7 @@ export async function fetchCourseById(id: number | string): Promise<Course> {
 
   const local = inMemoryCourses.find((c) => String(c.id) === String(id));
   if (local) return local;
-  return DEFAULT_COURSES[0];
+  return inMemoryCourses[0] || null;
 }
 
 export async function fetchCategories(): Promise<Category[]> {
@@ -277,42 +277,85 @@ export async function fetchCategories(): Promise<Category[]> {
   return fallback;
 }
 
-export async function fetchBanners(): Promise<Banner[]> {
-  if (inMemoryBanners && inMemoryBanners.length > 0) {
-    apiFetch<{ success?: boolean; data?: Banner[] }>('/api/banners')
-      .then((res) => {
-        const list = Array.isArray(res) ? res : res?.data || [];
-        if (list.length > 0) {
-          inMemoryBanners = list;
-          AsyncStorage.setItem(BANNERS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
-        }
-      })
-      .catch(() => {});
-    return inMemoryBanners;
+export interface ContentItem {
+  id: string;
+  courseId: number;
+  parentId: string | null;
+  title: string;
+  type: 'folder' | 'video' | 'pdf' | 'note' | 'quiz';
+  mediaUrl: string | null;
+  fileSize?: string | null;
+  order: number;
+}
+
+export interface LiveClassItem {
+  id: number;
+  courseId: number;
+  courseTitle?: string | null;
+  title: string;
+  meetUrl?: string | null;
+  startTime: string;
+  endTime: string;
+  status: 'scheduled' | 'live' | 'ended';
+  educatorName?: string | null;
+}
+
+export async function fetchCourseContent(courseId: number): Promise<ContentItem[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: ContentItem[]; content?: ContentItem[] }>(
+      `/api/courses/${courseId}/content?parentId=all`
+    );
+    const raw = res?.data ?? res?.content ?? [];
+    return Array.isArray(raw) ? raw : [];
+  } catch (err) {
+    console.warn(`[fetchCourseContent] Error loading content for course ${courseId}:`, err);
+    return [];
   }
+}
+
+export async function fetchMyLiveClasses(): Promise<LiveClassItem[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: LiveClassItem[] }>('/api/live-classes/my');
+    const raw = res?.data ?? [];
+    return Array.isArray(raw) ? raw : [];
+  } catch (err) {
+    console.warn('[fetchMyLiveClasses] Error loading live classes:', err);
+    return [];
+  }
+}
+
+export async function fetchBanners(placement: string = 'home'): Promise<Banner[]> {
+  const cacheKey = `${BANNERS_CACHE_KEY}_${placement}`;
 
   try {
-    const cached = await AsyncStorage.getItem(BANNERS_CACHE_KEY);
+    const cached = await AsyncStorage.getItem(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        inMemoryBanners = parsed;
+        // Return cached and refresh in background
+        apiFetch<{ success?: boolean; data?: Banner[] }>(`/api/banners?placement=${placement}`)
+          .then((res) => {
+            const list = Array.isArray(res) ? res : res?.data || [];
+            if (list.length > 0) {
+              AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
+            }
+          })
+          .catch(() => {});
         return parsed;
       }
     }
   } catch {}
 
   try {
-    const res = await apiFetch<{ success?: boolean; data?: Banner[] }>('/api/banners');
+    const res = await apiFetch<{ success?: boolean; data?: Banner[] }>(`/api/banners?placement=${placement}`);
     const list = Array.isArray(res) ? res : res?.data || [];
     if (list.length > 0) {
-      inMemoryBanners = list;
-      AsyncStorage.setItem(BANNERS_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
       return list;
     }
   } catch {}
 
-  return DEFAULT_BANNERS;
+  return placement === 'home' ? DEFAULT_BANNERS : [];
 }
 
 export async function fetchStudentGoal(): Promise<StudentGoal | null> {
