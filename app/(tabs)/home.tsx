@@ -273,10 +273,10 @@ export default function HomeScreen() {
             <View style={[styles.librarySquareIcon, { backgroundColor: '#059669' }]}>
               <Feather name="target" size={22} color="#FFFFFF" />
             </View>
-            <Text style={styles.libCardTitle}>All India Test Series</Text>
+            <Text style={styles.libCardTitle}>Test Series</Text>
             <Text style={styles.libCardBadge}>Active CBT Tests</Text>
             <Text style={styles.libCardSub} numberOfLines={2}>
-              Real NTA Exam Pattern
+             On Real Exam Pattern
             </Text>
             <View style={styles.libCardLinkBtn}>
               <Text style={styles.libCardLinkText}>Start Practice Test  ›</Text>

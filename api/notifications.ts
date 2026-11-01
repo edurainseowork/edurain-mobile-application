@@ -77,9 +77,27 @@ export async function fetchNotifications(): Promise<NotificationItem[]> {
   }
 }
 
+const listeners = new Set<() => void>();
+
+export function subscribeNotificationUpdates(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function notifySubscribers() {
+  listeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {}
+  });
+}
+
 export async function markNotificationAsRead(id: number): Promise<void> {
   localReadIds.add(id);
   AsyncStorage.setItem(READ_IDS_KEY, JSON.stringify(Array.from(localReadIds))).catch(() => {});
+  notifySubscribers();
   try {
     if (id > 0) {
       await apiFetch(`/api/notifications/${id}/read`, { method: 'POST' });
@@ -90,6 +108,7 @@ export async function markNotificationAsRead(id: number): Promise<void> {
 export async function markAllNotificationsAsRead(): Promise<void> {
   localAllReadTimestamp = Date.now();
   AsyncStorage.setItem(ALL_READ_TIMESTAMP_KEY, String(localAllReadTimestamp)).catch(() => {});
+  notifySubscribers();
   try {
     await apiFetch('/api/notifications/read-all', { method: 'POST' });
   } catch {}

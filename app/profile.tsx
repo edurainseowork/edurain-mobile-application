@@ -102,9 +102,10 @@ export default function ProfileScreen() {
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.7,
+            base64: true,
           });
           if (!res.canceled && res.assets && res.assets[0].uri) {
-            uploadPhoto(res.assets[0].uri);
+            uploadPhoto(res.assets[0].uri, res.assets[0].base64 || undefined);
           }
         },
       },
@@ -121,9 +122,10 @@ export default function ProfileScreen() {
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.7,
+            base64: true,
           });
           if (!res.canceled && res.assets && res.assets[0].uri) {
-            uploadPhoto(res.assets[0].uri);
+            uploadPhoto(res.assets[0].uri, res.assets[0].base64 || undefined);
           }
         },
       },
@@ -131,10 +133,10 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const uploadPhoto = async (uri: string) => {
+  const uploadPhoto = async (uri: string, base64?: string) => {
     setUploadingPhoto(true);
     try {
-      const newUrl = await uploadProfilePhoto(uri);
+      const newUrl = await uploadProfilePhoto(uri, base64);
       if (newUrl) {
         setProfile((prev) => (prev ? { ...prev, profilePhoto: newUrl } : null));
         await refreshUserData();
@@ -253,6 +255,28 @@ export default function ProfileScreen() {
   const strengthCount = completedList.length;
   const strengthPercent = Math.round((strengthCount / 7) * 100);
 
+  const formatMemberDate = (dateStr?: string | null): string => {
+    if (!dateStr) return 'Oct 2026';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const openEditModal = () => {
+    setName(profile?.name || user?.name || '');
+    setPhone(profile?.phone || user?.phone || '');
+    setGender((profile?.gender as any) || null);
+    setCity(profile?.city || '');
+    setStateName(profile?.state || '');
+    setPincode(profile?.pincode || '');
+    setIsEditModalOpen(true);
+  };
+
   // Telemetry items
   const stats = profile?.stats;
   const mockPace = stats?.pace?.secondsPerQuestion
@@ -262,9 +286,11 @@ export default function ProfileScreen() {
     ? `Top ${stats.standing.topPercent}% AIR ~${stats.standing.rank || 5}`
     : 'Top 71.4% AIR ~5';
   const currentStreak = profile?.streak?.current ?? user?.streakCount ?? 1;
+  const bestStreak = Math.max(currentStreak, profile?.streak?.longest ?? 0, 4);
   const latestScore = stats?.latestTest
-    ? `AIR 2 (${stats.latestTest.score}/${stats.latestTest.maxMarks})`
+    ? `AIR ${stats.latestTest.rank} (${stats.latestTest.score}/${stats.latestTest.maxMarks})`
     : 'AIR 2 (0/32)';
+  const positionsGained = stats?.latestTest?.positionsGained;
   const velocity = stats?.syllabus?.percent !== undefined ? `${stats.syllabus.percent}%` : '0%';
   const accuracy = stats?.accuracy?.percent !== undefined ? `${stats.accuracy.percent}%` : '—';
 
@@ -357,7 +383,7 @@ export default function ProfileScreen() {
 
                 <View style={styles.memberRow}>
                   <Text style={styles.memberSinceText}>
-                    {profile?.memberSince ? `Member since ${profile.memberSince}` : 'Member since Oct 2026'}
+                    Member since {formatMemberDate(profile?.memberSince)}
                   </Text>
                   {Boolean(profile?.profilePhoto || user?.photo) && (
                     <TouchableOpacity
@@ -381,7 +407,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   style={styles.editProfileBtn}
                   activeOpacity={0.85}
-                  onPress={() => setIsEditModalOpen(true)}
+                  onPress={openEditModal}
                 >
                   <Feather name="edit-2" size={13} color="#FFFFFF" />
                   <Text style={styles.editProfileBtnText}>Edit Profile</Text>
@@ -427,7 +453,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.completeBtn}
                 activeOpacity={0.8}
-                onPress={() => setIsEditModalOpen(true)}
+                onPress={openEditModal}
               >
                 <Feather name="edit" size={12} color="#0B3B42" />
                 <Text style={styles.completeBtnText}>Complete Profile</Text>
@@ -489,7 +515,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.detailTile}
               activeOpacity={0.7}
-              onPress={() => setIsEditModalOpen(true)}
+              onPress={openEditModal}
             >
               <Text style={styles.tileLabel}>MOBILE NUMBER</Text>
               <View style={styles.tileContentRow}>
@@ -519,7 +545,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.detailTile}
               activeOpacity={0.7}
-              onPress={() => setIsEditModalOpen(true)}
+              onPress={openEditModal}
             >
               <Text style={styles.tileLabel}>GENDER</Text>
               <View style={styles.tileContentRow}>
@@ -540,7 +566,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.detailTile}
               activeOpacity={0.7}
-              onPress={() => setIsEditModalOpen(true)}
+              onPress={openEditModal}
             >
               <Text style={styles.tileLabel}>CITY / STATE</Text>
               <View style={styles.tileContentRow}>
@@ -610,7 +636,7 @@ export default function ProfileScreen() {
                 <Ionicons name="flame" size={15} color="#3B82F6" />
               </View>
               <Text style={styles.telemetryValueMain}>{currentStreak} Day</Text>
-              <Text style={styles.telemetryFooter}>Best: 4 days</Text>
+              <Text style={styles.telemetryFooter}>Best: {bestStreak} days</Text>
             </View>
 
             {/* Tile 4: AIR Marks */}
@@ -620,7 +646,17 @@ export default function ProfileScreen() {
                 <Feather name="bar-chart-2" size={14} color="#64748B" />
               </View>
               <Text style={styles.telemetryValueMain}>{latestScore}</Text>
-              <Text style={styles.telemetryFooterRed}>↓ 1 pos down</Text>
+              {positionsGained !== null && positionsGained !== undefined ? (
+                positionsGained > 0 ? (
+                  <Text style={styles.telemetryFooterGreen}>↑ {positionsGained} pos up</Text>
+                ) : positionsGained < 0 ? (
+                  <Text style={styles.telemetryFooterRed}>↓ {Math.abs(positionsGained)} pos down</Text>
+                ) : (
+                  <Text style={styles.telemetryFooter}>Stable position</Text>
+                )
+              ) : (
+                <Text style={styles.telemetryFooterRed}>↓ 1 pos down</Text>
+              )}
             </View>
 
             {/* Tile 5: Velocity */}
@@ -749,6 +785,18 @@ export default function ProfileScreen() {
                 placeholder="Student Name"
               />
 
+              <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
+              <View style={styles.readOnlyFieldWrap}>
+                <TextInput
+                  style={[styles.fieldInput, styles.fieldInputDisabled]}
+                  value={profile?.email || user?.email || 'student@edurain.in'}
+                  editable={false}
+                />
+                <View style={styles.loginEmailBadgeInModal}>
+                  <Text style={styles.loginEmailTextInModal}>LOGIN EMAIL</Text>
+                </View>
+              </View>
+
               <Text style={styles.fieldLabel}>MOBILE NUMBER</Text>
               <TextInput
                 style={styles.fieldInput}
@@ -757,6 +805,37 @@ export default function ProfileScreen() {
                 placeholder="10-digit mobile number"
                 keyboardType="phone-pad"
               />
+
+              <Text style={styles.fieldLabel}>TARGET EXAM & STREAM</Text>
+              <View style={[styles.fieldInput, styles.fieldInputDisabled]}>
+                <Text style={{ color: '#0B3B42', fontWeight: '600' }}>
+                  {goal?.name?.toUpperCase() || 'NEET'}
+                </Text>
+              </View>
+
+              <Text style={styles.fieldLabel}>GENDER</Text>
+              <View style={styles.genderRow}>
+                {(['male', 'female', 'other'] as const).map((g) => (
+                  <TouchableOpacity
+                    key={g}
+                    style={[
+                      styles.genderPill,
+                      gender === g && styles.genderPillSelected,
+                    ]}
+                    onPress={() => setGender(g)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.genderPillText,
+                        gender === g && styles.genderPillTextSelected,
+                      ]}
+                    >
+                      {g.charAt(0).toUpperCase() + g.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
               <Text style={styles.fieldLabel}>CITY</Text>
               <TextInput
@@ -1457,6 +1536,60 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontFamily: Theme.fonts.bold,
     color: '#FFFFFF',
+  },
+  fieldInputDisabled: {
+    backgroundColor: '#F1F5F9',
+    color: '#64748B',
+  },
+  readOnlyFieldWrap: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  loginEmailBadgeInModal: {
+    position: 'absolute',
+    right: 12,
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  loginEmailTextInModal: {
+    fontSize: 9.5,
+    fontFamily: Theme.fonts.bold,
+    color: '#475569',
+  },
+  genderRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  genderPill: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  genderPillSelected: {
+    borderColor: '#0F3C45',
+    backgroundColor: '#0F3C45',
+  },
+  genderPillText: {
+    fontSize: 13,
+    fontFamily: Theme.fonts.medium,
+    color: '#475569',
+  },
+  genderPillTextSelected: {
+    color: '#FFFFFF',
+    fontFamily: Theme.fonts.bold,
+  },
+  telemetryFooterGreen: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.bold,
+    color: '#059669',
+    marginTop: 2,
   },
 });
 

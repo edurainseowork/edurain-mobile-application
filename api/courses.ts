@@ -373,18 +373,43 @@ export async function saveStudentGoal(categoryName: string, categoryId?: number 
 
 export async function fetchActiveCourse(): Promise<Course | null> {
   try {
-    const res = await apiFetch<{ success: boolean; data: Course | null }>('/api/me/active-course');
-    return res?.data ?? null;
-  } catch {
-    return null;
-  }
+    const res = await apiFetch<{ success: boolean; activeCourseId?: number | null; data?: Course | null }>('/api/me/active-course');
+    const courseId = res?.activeCourseId ?? (res?.data as any)?.id ?? null;
+    if (courseId) {
+      const course = await fetchCourseById(courseId);
+      if (course) {
+        await AsyncStorage.setItem('edurain_active_course', JSON.stringify(course));
+        return course;
+      }
+    }
+  } catch {}
+
+  try {
+    const cached = await AsyncStorage.getItem('edurain_active_course');
+    if (cached) return JSON.parse(cached);
+  } catch {}
+
+  return inMemoryCourses[1] || inMemoryCourses[0] || null;
 }
 
-export async function setActiveCourse(courseId: number): Promise<void> {
-  await apiFetch('/api/me/active-course', {
-    method: 'PUT',
-    body: JSON.stringify({ courseId }),
-  });
+export async function setActiveCourse(courseId: number): Promise<{ activeCourseId: number; goalCategoryId?: number | null }> {
+  try {
+    const res = await apiFetch<{ success: boolean; activeCourseId: number; goalCategoryId?: number | null }>('/api/me/active-course', {
+      method: 'PUT',
+      body: JSON.stringify({ courseId }),
+    });
+    const course = await fetchCourseById(courseId);
+    if (course) {
+      await AsyncStorage.setItem('edurain_active_course', JSON.stringify(course));
+    }
+    return { activeCourseId: res?.activeCourseId ?? courseId, goalCategoryId: res?.goalCategoryId };
+  } catch {
+    const course = await fetchCourseById(courseId);
+    if (course) {
+      await AsyncStorage.setItem('edurain_active_course', JSON.stringify(course));
+    }
+    return { activeCourseId: courseId };
+  }
 }
 
 export async function fetchEnrolledCourseIds(): Promise<number[]> {

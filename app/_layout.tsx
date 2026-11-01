@@ -43,6 +43,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="my-purchases" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="doubt" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="mentorship" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="ai-tutor" options={{ animation: 'slide_from_right' }} />

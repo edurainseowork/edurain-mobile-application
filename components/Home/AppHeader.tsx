@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
 import { fetchCategories, Category } from '../../api/goal';
-import { fetchNotifications } from '../../api/notifications';
+import { fetchNotifications, subscribeNotificationUpdates } from '../../api/notifications';
 
 interface AppHeaderProps {
   showSearch?: boolean;
@@ -82,9 +82,11 @@ export function AppHeader({
       }).catch(() => {});
     };
     checkNotifs();
+    const unsubscribe = subscribeNotificationUpdates(checkNotifs);
     const interval = setInterval(checkNotifs, 10000);
     return () => {
       active = false;
+      unsubscribe();
       clearInterval(interval);
     };
   }, []);
@@ -295,7 +297,7 @@ export function AppHeader({
               {/* 1. My Purchases */}
               <TouchableOpacity
                 style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/(tabs)/courses')}
+                onPress={() => navigateFromDrawer('/my-purchases')}
                 activeOpacity={0.7}
               >
                 <Feather name="shopping-bag" size={18} color="#175A67" />
