@@ -30,7 +30,7 @@ interface AppHeaderProps {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export function AppHeader({
-  showSearch = true,
+  showSearch = false,
   onSearchPress,
   onNotificationsPress,
   onProfilePress,
@@ -182,18 +182,8 @@ export function AppHeader({
           </TouchableOpacity>
         </View>
 
-        {/* Right Actions: Search + Bell with Red Dot + Student Avatar */}
+        {/* Right Actions: Bell with Red Dot + Student Avatar (Search icon removed as requested) */}
         <View style={styles.actions}>
-          {showSearch && (
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={onSearchPress || (() => router.push('/(tabs)/courses'))}
-              activeOpacity={0.7}
-            >
-              <Feather name="search" size={20} color="#0B3B42" />
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={handleBellPress}

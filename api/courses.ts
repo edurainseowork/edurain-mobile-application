@@ -1,22 +1,109 @@
 import { apiFetch } from './client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface CourseMentor {
+  name: string;
+  experience?: string | null;
+  photo?: string | null;
+}
+
+export interface CoursePaidPlan {
+  price: number; // paise
+  originalPrice: number | null; // paise
+  features: string[];
+}
+
+export interface CoursePlans {
+  basic?: { features: string[] };
+  pro?: CoursePaidPlan;
+  proMax?: CoursePaidPlan;
+}
+
 export interface Course {
   id: number;
   title: string;
   description?: string | null;
-  price: number;
+  price: number; // paise
+  originalPrice?: number | null; // paise
   discountPrice?: number | null;
   thumbnail?: string | null;
   banner?: string | null;
+  bannerImage?: string | null;
   category: string;
   categoryId?: number | null;
+  categorySlug?: string | null;
   instructorName?: string | null;
+  mentors?: CourseMentor[] | null;
+  studentsEnrolled?: number | null;
+  duration?: string | null;
+  totalLessons?: number | null;
+  totalLectures?: number | null;
   playProductId?: string | null;
-  totalLectures?: number;
-  totalDurationHours?: number;
   isPopular?: boolean;
   status?: string;
+  plans?: CoursePlans;
+}
+
+export interface DisplayPlan {
+  id: 'basic' | 'pro' | 'proMax';
+  name: string;
+  price: number; // rupees
+  mrp: number; // rupees
+  features: string[];
+}
+
+export const paiseToRupees = (paise: number | null | undefined): number => {
+  if (paise == null) return 0;
+  return Math.round(paise / 100);
+};
+
+export const discountPct = (price: number, mrp: number): number => {
+  if (!mrp || mrp <= price) return 0;
+  return Math.round((1 - price / mrp) * 100);
+};
+
+export const formatINR = (rupees: number): string => {
+  return `₹${rupees.toLocaleString('en-IN')}`;
+};
+
+export function getDisplayPlans(course: Course): DisplayPlan[] {
+  const basicPrice = paiseToRupees(course.price);
+  const basicMrp = Math.max(basicPrice, paiseToRupees(course.originalPrice ?? course.price));
+  const plans: DisplayPlan[] = [
+    {
+      id: 'basic',
+      name: 'Basic',
+      price: basicPrice,
+      mrp: basicMrp,
+      features: course.plans?.basic?.features || [],
+    },
+  ];
+
+  if (course.plans?.pro) {
+    const proPrice = paiseToRupees(course.plans.pro.price);
+    const proMrp = Math.max(proPrice, paiseToRupees(course.plans.pro.originalPrice ?? course.plans.pro.price));
+    plans.push({
+      id: 'pro',
+      name: 'Pro',
+      price: proPrice,
+      mrp: proMrp,
+      features: course.plans.pro.features || [],
+    });
+  }
+
+  if (course.plans?.proMax) {
+    const maxPrice = paiseToRupees(course.plans.proMax.price);
+    const maxMrp = Math.max(maxPrice, paiseToRupees(course.plans.proMax.originalPrice ?? course.plans.proMax.price));
+    plans.push({
+      id: 'proMax',
+      name: 'Pro Max',
+      price: maxPrice,
+      mrp: maxMrp,
+      features: course.plans.proMax.features || [],
+    });
+  }
+
+  return plans;
 }
 
 export interface Category {
@@ -69,90 +156,6 @@ const COURSES_CACHE_KEY = 'edurain_courses_cache_v2';
 const BANNERS_CACHE_KEY = 'edurain_banners_cache_v2';
 const CATEGORIES_CACHE_KEY = 'edurain_categories_cache';
 
-const DEFAULT_COURSES: Course[] = [
-  {
-    id: 24,
-    title: 'rtyhkhgg',
-    description: 'dfghjgvytgfygy',
-    price: 98000,
-    category: 'JEE',
-    categoryId: 1,
-    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/9a38f03d-57b6-4808-a6a7-76decad48d71.png',
-  },
-  {
-    id: 23,
-    title: 'Engineering bno',
-    description: 'Complete Arjuna JEE Batch Access with Live Lectures & AITS',
-    price: 0,
-    category: 'JEE',
-    categoryId: 1,
-    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/b586c1d9-1a43-48da-9811-b64ad2401333.png',
-  },
-  {
-    id: 22,
-    title: 'tedgsdbhsjndms,dsdfsssssssssssssssssssss',
-    description: 'Comprehensive NEET exam preparation module',
-    price: 56000,
-    category: 'NEET',
-    categoryId: 2,
-    thumbnail: 'https://edurain-notification.s3.ap-south-1.amazonaws.com/images/5c12ad07-637d-446e-8569-4367e354e1ac.png',
-  },
-  {
-    id: 19,
-    title: '2ss2',
-    description: 'Focused NEET rank booster sprint',
-    price: 148,
-    category: 'NEET',
-    categoryId: 2,
-    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/images/f74a2ccf-ab94-49b6-b898-888687dc54b1.png',
-  },
-  {
-    id: 10,
-    title: 'Class 11th PCB',
-    description: 'Complete Class 11th Physics, Chemistry, and Biology course',
-    price: 499900,
-    category: 'NEET',
-    categoryId: 2,
-    thumbnail: 'https://edurain-media-v2.s3.ap-south-1.amazonaws.com/courses/thumbnails/pcb-11.jpg',
-  },
-  {
-    id: 9,
-    title: 'Doctor',
-    description: 'Medical entrance mastery program',
-    price: 100000,
-    category: 'NEET',
-    categoryId: 2,
-    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/64a7a2b4-bb3a-42da-a3b2-2bac34e46129.png',
-  },
-  {
-    id: 20,
-    title: 'fmfmdsnfmdsfdsf',
-    description: 'Foundation problem solving toolkit',
-    price: 53400,
-    category: 'FOUNDATION',
-    categoryId: 3,
-    thumbnail: 'https://edurain-notification.s3.ap-south-1.amazonaws.com/images/99024f1a-6577-410f-abdc-01cb5fd401c4.jpg',
-  },
-  {
-    id: 16,
-    title: 'SSC',
-    description: 'Crack SSC exam with live classes and mock series',
-    price: 99900,
-    category: 'FOUNDATION',
-    categoryId: 3,
-    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/dc4a69cc-af9e-4851-9df2-81bf6db14243.jpg',
-  },
-  {
-    id: 8,
-    title: 'IIT Mechanical',
-    description: 'Engineering foundations & core concepts',
-    price: 100000,
-    category: 'FOUNDATION',
-    categoryId: 3,
-    thumbnail: 'https://sjlfsfe8jf.execute-api.ap-south-1.amazonaws.com/uploads/54031ad8-3901-4fc6-9d78-e03bedb10ab9.png',
-  },
-];
-
 const DEFAULT_BANNERS: Banner[] = [
   {
     id: 11,
@@ -168,7 +171,7 @@ const DEFAULT_BANNERS: Banner[] = [
   },
 ];
 
-let inMemoryCourses: Course[] = DEFAULT_COURSES;
+let inMemoryCourses: Course[] = [];
 let inMemoryBanners: Banner[] = DEFAULT_BANNERS;
 let inMemoryCategories: Category[] | null = null;
 
@@ -191,21 +194,21 @@ AsyncStorage.getItem(BANNERS_CACHE_KEY).then((data) => {
   }
 }).catch(() => {});
 
-export async function fetchCourses(): Promise<Course[]> {
-  // If in-memory courses are present, trigger background revalidate and return immediately
-  if (inMemoryCourses && inMemoryCourses.length > 0) {
-    apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses')
-      .then((res) => {
-        const list = Array.isArray(res) ? res : res?.data || [];
-        if (list.length > 0) {
-          inMemoryCourses = list;
-          AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
-        }
-      })
-      .catch(() => {});
-    return inMemoryCourses;
+export async function fetchCourses(forceNetwork: boolean = false): Promise<Course[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses');
+    const list = Array.isArray(res) ? res : res?.data || [];
+    if (Array.isArray(list) && list.length > 0) {
+      inMemoryCourses = list;
+      AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
+      return list;
+    }
+  } catch (err) {
+    console.warn('[fetchCourses] Network error, using cache:', err);
   }
 
+  // Fallback to cache if network is down
+  if (inMemoryCourses.length > 0) return inMemoryCourses;
   try {
     const cached = await AsyncStorage.getItem(COURSES_CACHE_KEY);
     if (cached) {
@@ -214,16 +217,6 @@ export async function fetchCourses(): Promise<Course[]> {
         inMemoryCourses = parsed;
         return parsed;
       }
-    }
-  } catch {}
-
-  try {
-    const res = await apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses');
-    const list = Array.isArray(res) ? res : res?.data || [];
-    if (list.length > 0) {
-      inMemoryCourses = list;
-      AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
-      return list;
     }
   } catch {}
 
