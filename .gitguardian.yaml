@@ -1,0 +1,9 @@
+# ==============================================================================
+# GitGuardian (ggshield) Security Policy Configuration
+# ==============================================================================
+version: 2
+secret:
+  ignored_paths:
+    - ".env.example"
+    - "node_modules/**"
+    - "dist/**"

@@ -9,6 +9,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:secrets": "node ./scripts/check-secrets.mjs",
     "build:all:preview": "eas build -p all --profile preview",
     "build:all:prod": "eas build -p all --profile production",
     "build:android:apk": "eas build -p android --profile preview",
