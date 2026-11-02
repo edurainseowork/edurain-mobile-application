@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,14 +9,16 @@ import {
   RefreshControl,
   Dimensions,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { io } from 'socket.io-client';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
 import { AppHeader } from '../../components/Home/AppHeader';
 import { fetchBanners, Banner } from '../../api/courses';
 import { fetchNotifications, NotificationItem } from '../../api/notifications';
+import { API_BASE_URL, SOCKET_URL } from '../../api/client';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -28,25 +30,66 @@ export default function HomeScreen() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (force: boolean = false) => {
     try {
-      const [bannerList, notifList] = await Promise.all([
-        fetchBanners().catch(() => []),
-        fetchNotifications().catch(() => []),
-        refreshUserData().catch(() => {}),
-      ]);
-      setBanners(bannerList);
+      if (!force) {
+        // Immediate paint from local cache
+        const cached = await fetchBanners('home', false).catch(() => []);
+        if (Array.isArray(cached) && cached.length > 0) setBanners(cached);
+      }
+
+      // Always fetch fresh live banners from server
+      const fresh = await fetchBanners('home', true).catch(() => null);
+      if (Array.isArray(fresh)) {
+        setBanners(fresh);
+      }
+
+      const notifList = await fetchNotifications().catch(() => []);
       setNotifications(notifList);
+      refreshUserData().catch(() => {});
     } catch {}
-  };
+  }, [refreshUserData]);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
+  }, [loadData]);
+
+  // Real-time synchronization when tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadData(true);
+    }, [loadData])
+  );
+
+  // Real-time Socket.io listener: instantly updates when CMS uploads/deletes a banner
+  useEffect(() => {
+    let socket: any = null;
+    try {
+      socket = (io as any)(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      } as any);
+
+      const handleUpdate = () => {
+        fetchBanners('home', true)
+          .then((fresh) => {
+            if (Array.isArray(fresh)) setBanners(fresh);
+          })
+          .catch(() => {});
+      };
+
+      socket?.on?.('banners_updated', handleUpdate);
+      socket?.on?.('catalog_updated', handleUpdate);
+    } catch {}
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadData(true);
     setRefreshing(false);
   };
 
@@ -327,7 +370,7 @@ const styles = StyleSheet.create({
   },
   bannerCard: {
     width: SCREEN_WIDTH - 32,
-    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    height: Math.round((SCREEN_WIDTH - 32) * (320 / 720)),
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0F3C45',

@@ -17,6 +17,7 @@ import {
 } from '../api/courses';
 import { fetchProfile, recordStreakActivity, deleteAccount as apiDeleteAccount, StudentProfile } from '../api/profile';
 import { registerPushToken } from '../api/notifications';
+import { registerForPushNotificationsAsync } from '../services/pushNotificationService';
 
 export interface AppUser {
   uid: string;
@@ -95,38 +96,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 2. Firebase Auth state listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        let role: 'student' | 'admin' | 'faculty' = 'student';
-        try {
-          const idToken = await firebaseUser.getIdTokenResult();
-          if (idToken.claims.role === 'admin' || idToken.claims.role === 'faculty') {
-            role = idToken.claims.role;
-          }
-        } catch {}
+    let isMounted = true;
 
-        setUser({
-          uid: firebaseUser.uid,
-          name: firebaseUser.displayName,
-          email: firebaseUser.email,
-          role,
-          streakCount: 0,
-        });
-
-        // Load complete profile & enrollments
-        await refreshUserData();
-        // Ping daily streak
-        recordStreakActivity().catch(() => {});
-      } else {
-        setUser(null);
-        setGoal(null);
-        setActiveCourse(null);
-        setEnrolledIds([]);
+    // Hard fallback: App must NEVER hang on splash screen for more than 1.2s
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsReady(true);
       }
-      setIsReady(true);
+    }, 1200);
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      try {
+        if (firebaseUser) {
+          let role: 'student' | 'admin' | 'faculty' = 'student';
+          try {
+            const idTokenPromise = firebaseUser.getIdTokenResult();
+            const idToken = await Promise.race([
+              idTokenPromise,
+              new Promise<any>((_, reject) => setTimeout(() => reject('timeout'), 1000)),
+            ]);
+            if (idToken?.claims?.role === 'admin' || idToken?.claims?.role === 'faculty') {
+              role = idToken.claims.role;
+            }
+          } catch {}
+
+          if (!isMounted) return;
+
+          setUser({
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName,
+            email: firebaseUser.email,
+            role,
+            streakCount: 0,
+          });
+
+          // Background sync so user never waits on splash screen
+          refreshUserData().catch(() => {});
+          recordStreakActivity().catch(() => {});
+          registerForPushNotificationsAsync().catch(() => {});
+        } else {
+          if (!isMounted) return;
+          setUser(null);
+          setGoal(null);
+          setActiveCourse(null);
+          setEnrolledIds([]);
+        }
+      } catch (err) {
+        console.warn('[onAuthStateChanged] Non-fatal auth listener error:', err);
+      } finally {
+        if (isMounted) {
+          setIsReady(true);
+          clearTimeout(safetyTimer);
+        }
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+      unsubscribe();
+    };
   }, [refreshUserData]);
 
   // 3. AppState listener for Foreground Sync & Streak
@@ -260,9 +289,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const selectActiveCourse = useCallback(async (courseId: number) => {
-    await setServerActiveCourse(courseId);
-    const updated = await fetchActiveCourse();
-    setActiveCourse(updated);
+    const res = await setServerActiveCourse(courseId);
+    if (res?.goal) {
+      setGoal(res.goal);
+    }
+    const [updated, goalFresh] = await Promise.all([
+      fetchActiveCourse(),
+      fetchStudentGoal(),
+    ]);
+    if (updated) setActiveCourse(updated);
+    if (goalFresh) setGoal(goalFresh);
   }, []);
 
   const isEnrolled = useCallback(

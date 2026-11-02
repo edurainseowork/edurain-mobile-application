@@ -19,6 +19,7 @@ import {
   fetchCourses,
   fetchActiveCourse,
   fetchBanners,
+  fetchEnrolledCourseIds,
   setActiveCourse as setServerActiveCourse,
   Course,
   Banner,
@@ -95,10 +96,11 @@ export default function MyPurchasesScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [profileData, allCourses, pBanners] = await Promise.all([
+      const [profileData, allCourses, pBanners, freshIds] = await Promise.all([
         fetchProfile().catch(() => null),
         fetchCourses().catch(() => []),
         fetchBanners('mobile_purchases').catch(() => []),
+        fetchEnrolledCourseIds().catch(() => []),
       ]);
       if (pBanners && pBanners.length > 0) {
         setPurchasesBanners(pBanners);
@@ -123,9 +125,10 @@ export default function MyPurchasesScreen() {
         }
       }
 
-      // 2. From enrolledIds in context
-      if (enrolledIds && enrolledIds.length > 0) {
-        for (const id of enrolledIds) {
+      // 2. From freshIds or enrolledIds in context
+      const allEnrolledIds = Array.from(new Set([...(freshIds || []), ...(enrolledIds || [])]));
+      if (allEnrolledIds.length > 0) {
+        for (const id of allEnrolledIds) {
           if (!seenIds.has(id)) {
             const match = allCourses.find((ac) => ac.id === id);
             if (match) {
@@ -145,8 +148,6 @@ export default function MyPurchasesScreen() {
 
       if (items.length > 0) {
         setEnrolledList(items);
-      } else {
-        setEnrolledList(DEFAULT_FALLBACK_ENROLLED);
       }
     } catch {
       // Keep existing list
@@ -250,7 +251,7 @@ export default function MyPurchasesScreen() {
           {/* Title & Subtitle */}
           <View style={styles.titleSection}>
             <Text style={styles.pageTitle}>My Purchases</Text>
-            <Text style={styles.pageSub}>Manage your enrolled academic courses.</Text>
+            <Text style={styles.pageSub}>Manage your enrolled academic batches.</Text>
           </View>
 
           {/* Hero Card: Your Enrolled Courses */}
@@ -271,7 +272,7 @@ export default function MyPurchasesScreen() {
               </View>
             </View>
 
-            <Text style={styles.cardHeading}>Your Enrolled Courses</Text>
+            <Text style={styles.cardHeading}>Your Enrolled Batches</Text>
             <Text style={styles.cardDescription}>
               Access your active academic batches, daily lecture streams, comprehensive curriculum roadmap, and chapter-wise DPPs.
             </Text>
@@ -280,7 +281,7 @@ export default function MyPurchasesScreen() {
 
             <View style={styles.heroBottomRow}>
               <View style={styles.openCoursesLink}>
-                <Text style={styles.openCoursesLinkText}>Open Enrolled Courses</Text>
+                <Text style={styles.openCoursesLinkText}>Open Enrolled Batches</Text>
                 <Feather name="arrow-right" size={16} color="#175A67" />
               </View>
               <TouchableOpacity
@@ -431,7 +432,7 @@ export default function MyPurchasesScreen() {
                         <View style={styles.yourActiveCourseNotice}>
                           <Ionicons name="checkmark-circle-outline" size={16} color="#059669" />
                           <Text style={styles.yourActiveCourseNoticeText}>
-                            Your active course
+                            Your active batch
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -710,7 +711,7 @@ const styles = StyleSheet.create({
   },
   purchasesBannerCard: {
     width: SCREEN_WIDTH - 32,
-    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    height: Math.round((SCREEN_WIDTH - 32) * (320 / 720)),
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0F3C45',

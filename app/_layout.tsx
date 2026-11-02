@@ -1,12 +1,17 @@
 import React, { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { LogBox } from 'react-native';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { CormorantGaramond_700Bold } from '@expo-google-fonts/cormorant-garamond';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
+import '../services/pushNotificationService';
 import { AppProvider } from '../context/AppContext';
 import { Theme } from '../constants/theme';
+
+LogBox.ignoreLogs(['BiometricAuth', 'BiometricAuth is undefined', 'Ensure the native module is properly linked']);
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -24,6 +29,21 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded]);
+
+  // Deep-link when user taps on a push notification (device tray / locked screen)
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data?.link) {
+        try {
+          router.push(data.link as any);
+          return;
+        } catch {}
+      }
+      router.push('/notifications' as any);
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!fontsLoaded) {
     return null;

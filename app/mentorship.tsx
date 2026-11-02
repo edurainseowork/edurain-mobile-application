@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Linking,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,12 +18,17 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
 import { AppHeader } from '../components/Home/AppHeader';
+import { LockedFeatureGuard } from '../components/LockedFeatureGuard';
 import {
   fetchMentors,
   fetchMentorDetails,
   bookMentorSlot,
+  holdMentorSlot,
+  releaseMentorSlot,
+  fetchMyBookings,
   Mentor,
   MentorSlot,
+  MentorBooking,
 } from '../api/mentorship';
 import { fetchCategories, Category } from '../api/courses';
 
@@ -30,17 +36,25 @@ export default function MentorshipScreen() {
   const insets = useSafeAreaInsets();
   const { goal, setGoal } = useApp();
 
+  const [activeTab, setActiveTab] = useState<'find' | 'my_sessions'>('find');
+
+  // Mentors state
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
+  // My Sessions state
+  const [myBookings, setMyBookings] = useState<MentorBooking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+
   // Booking Modal State
   const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
   const [mentorSlots, setMentorSlots] = useState<MentorSlot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<MentorSlot | null>(null);
+  const [holdSeconds, setHoldSeconds] = useState(0);
   const [bookingTopic, setBookingTopic] = useState('');
   const [bookingInProgress, setBookingInProgress] = useState(false);
 
@@ -48,7 +62,7 @@ export default function MentorshipScreen() {
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const loadMentors = async () => {
+  const loadMentors = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchMentors({
@@ -63,15 +77,49 @@ export default function MentorshipScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [goal?.id, searchQuery]);
+
+  const loadBookings = useCallback(async () => {
+    setBookingsLoading(true);
+    try {
+      const data = await fetchMyBookings();
+      setMyBookings(data);
+    } catch {
+      setMyBookings([]);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadMentors();
-  }, [goal?.id, searchQuery]);
+    loadBookings();
+  }, [loadMentors, loadBookings]);
+
+  // Slot hold countdown timer (30 seconds)
+  useEffect(() => {
+    if (holdSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setHoldSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (selectedSlot) {
+            releaseMentorSlot(selectedSlot.id);
+            setSelectedSlot(null);
+            Alert.alert('Hold Expired', 'Your 30-second slot reservation has ended. Please tap a slot again to reserve.');
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [holdSeconds, selectedSlot]);
 
   const handleOpenBooking = async (mentor: Mentor) => {
     setSelectedMentor(mentor);
     setSelectedSlot(null);
+    setHoldSeconds(0);
     setBookingTopic('');
     setSlotsLoading(true);
     try {
@@ -82,6 +130,33 @@ export default function MentorshipScreen() {
     } finally {
       setSlotsLoading(false);
     }
+  };
+
+  const handleCloseBookingModal = () => {
+    if (selectedSlot) {
+      releaseMentorSlot(selectedSlot.id);
+    }
+    setSelectedSlot(null);
+    setSelectedMentor(null);
+    setHoldSeconds(0);
+  };
+
+  const handleSelectSlot = async (slot: MentorSlot) => {
+    if (selectedSlot?.id === slot.id) return;
+    if (selectedSlot) {
+      releaseMentorSlot(selectedSlot.id);
+    }
+
+    const res = await holdMentorSlot(slot.id);
+    if (!res.success) {
+      Alert.alert('Slot Unavailable', res.error || 'This slot is currently held by another student.');
+      setSelectedSlot(null);
+      setHoldSeconds(0);
+      return;
+    }
+
+    setSelectedSlot(slot);
+    setHoldSeconds(30);
   };
 
   const handleConfirmBooking = async () => {
@@ -96,10 +171,14 @@ export default function MentorshipScreen() {
     if (res.success) {
       Alert.alert(
         'Session Booked!',
-        `Your 1:1 Mentorship session with ${selectedMentor?.name} has been booked. Meet link will be shared before session.`
+        `Your 1:1 Mentorship session with ${selectedMentor?.name} has been confirmed. Meet link will appear in My Scheduled Sessions.`
       );
+      setSelectedSlot(null);
       setSelectedMentor(null);
+      setHoldSeconds(0);
       loadMentors();
+      loadBookings();
+      setActiveTab('my_sessions');
     } else {
       Alert.alert('Booking Notice', res.error || 'Could not complete slot booking. Please try another slot.');
     }
@@ -119,7 +198,8 @@ export default function MentorshipScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <LockedFeatureGuard featureTitle="1 to 1 Mentorship">
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Top Header */}
       <AppHeader
         onSearchPress={() => {}}
@@ -139,148 +219,282 @@ export default function MentorshipScreen() {
           <Text style={styles.titleHeaderLabel}>1 to 1 Mentorship</Text>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchBarWrap}>
-          <Feather name="search" size={18} color="#94A3B8" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search mentor, course or..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Feather name="x" size={16} color="#94A3B8" />
-            </TouchableOpacity>
-          ) : null}
+        {/* Top Tab Switcher: Find Mentors vs My Scheduled Sessions */}
+        <View style={styles.topTabsRow}>
+          <TouchableOpacity
+            style={[styles.topTabBtn, activeTab === 'find' && styles.topTabBtnActive]}
+            onPress={() => setActiveTab('find')}
+            activeOpacity={0.8}
+          >
+            <Feather
+              name="compass"
+              size={14}
+              color={activeTab === 'find' ? '#FFFFFF' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.topTabBtnText, activeTab === 'find' && styles.topTabBtnTextActive]}>
+              Find Mentors
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.topTabBtn, activeTab === 'my_sessions' && styles.topTabBtnActive]}
+            onPress={() => {
+              setActiveTab('my_sessions');
+              loadBookings();
+            }}
+            activeOpacity={0.8}
+          >
+            <Feather
+              name="calendar"
+              size={14}
+              color={activeTab === 'my_sessions' ? '#FFFFFF' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.topTabBtnText, activeTab === 'my_sessions' && styles.topTabBtnTextActive]}>
+              My Scheduled Sessions
+            </Text>
+            {myBookings.length > 0 && (
+              <View style={styles.bookingsCountPill}>
+                <Text style={styles.bookingsCountPillText}>{myBookings.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Title Block */}
-        <View style={styles.titleSection}>
-          <Text style={styles.pageTitle}>1-on-1 Mentorship Sessions</Text>
-          <Text style={styles.pageSubtitle}>
-            Book live personalized guidance with the mentors of your{' '}
-            <Text style={styles.goalBold}>{goal?.name || 'JEE'}</Text> courses.{' '}
-            <Text style={styles.changeGoalLink} onPress={handleOpenGoalModal}>
-              Change goal
-            </Text>
-          </Text>
-        </View>
+        {activeTab === 'my_sessions' ? (
+          /* ======================================================== */
+          /*  MY SCHEDULED SESSIONS TAB                               */
+          /* ======================================================== */
+          <View style={styles.sessionsContainer}>
+            {bookingsLoading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#0F3C45" />
+                <Text style={styles.loadingText}>Loading your scheduled sessions...</Text>
+              </View>
+            ) : myBookings.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Feather name="calendar" size={36} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>No Scheduled Sessions</Text>
+                <Text style={styles.emptySub}>
+                  You haven't scheduled any 1-on-1 mentorship sessions yet. Book a session to get personalized strategy with top mentors.
+                </Text>
+                <TouchableOpacity style={styles.changeGoalBtn} onPress={() => setActiveTab('find')}>
+                  <Text style={styles.changeGoalBtnText}>Find a Mentor</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.bookingsList}>
+                {myBookings.map((b) => (
+                  <View key={b.id} style={styles.bookingCard}>
+                    <View style={styles.bookingCardHeader}>
+                      <View style={styles.mentorAvatarCircle}>
+                        <Text style={styles.mentorAvatarInitials}>
+                          {(b.mentorName || 'Mentor').slice(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.bookingHeaderInfo}>
+                        <Text style={styles.bookingMentorName}>{b.mentorName || '1:1 Mentor'}</Text>
+                        <Text style={styles.bookingCourseTitle} numberOfLines={1}>
+                          {b.courseTitle || 'EduRain Academic Mentorship'}
+                        </Text>
+                      </View>
+                      <View style={styles.confirmedPill}>
+                        <View style={styles.confirmedDot} />
+                        <Text style={styles.confirmedText}>Confirmed</Text>
+                      </View>
+                    </View>
 
-        {/* Filter Controls Row */}
-        <View style={styles.filterRow}>
-          <View style={styles.filterPillActive}>
-            <Ionicons name="school" size={15} color="#FFFFFF" />
-            <Text style={styles.filterPillActiveText}>Course Mentor</Text>
-          </View>
+                    <View style={styles.bookingTopicBox}>
+                      <Text style={styles.bookingTopicLabel}>Discussion Topic:</Text>
+                      <Text style={styles.bookingTopicText}>{b.topic}</Text>
+                    </View>
 
-          <View style={styles.filterRight}>
-            <Text style={styles.countText}>
-              Showing <Text style={styles.countBold}>{mentors.length}</Text> of {totalCount || mentors.length} mentors
-            </Text>
-            <View style={styles.viewToggleGroup}>
-              <TouchableOpacity
-                style={[styles.toggleBtn, viewMode === 'grid' && styles.toggleBtnActive]}
-                onPress={() => setViewMode('grid')}
-              >
-                <Feather name="grid" size={14} color={viewMode === 'grid' ? '#0F3C45' : '#94A3B8'} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
-                onPress={() => setViewMode('list')}
-              >
-                <Feather name="list" size={14} color={viewMode === 'list' ? '#0F3C45' : '#94A3B8'} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+                    <View style={styles.bookingTimeRow}>
+                      <Feather name="clock" size={14} color="#0F3C45" />
+                      <Text style={styles.bookingTimeText}>
+                        {new Date(b.startsAt).toLocaleDateString('en-IN', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                        })}{' '}
+                        at{' '}
+                        {new Date(b.startsAt).toLocaleTimeString('en-IN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}{' '}
+                        ({b.durationMinutes} mins)
+                      </Text>
+                    </View>
 
-        {/* Mentors List */}
-        {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#0F3C45" />
-            <Text style={styles.loadingText}>Loading verified mentors...</Text>
-          </View>
-        ) : mentors.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Feather name="users" size={36} color="#94A3B8" />
-            <Text style={styles.emptyTitle}>No Mentors Available</Text>
-            <Text style={styles.emptySub}>
-              We are onboarding top mentors for {goal?.name || 'this goal'}. Check back soon or try another goal.
-            </Text>
-            <TouchableOpacity style={styles.changeGoalBtn} onPress={handleOpenGoalModal}>
-              <Text style={styles.changeGoalBtnText}>Change Exam Goal</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.mentorsContainer}>
-            {mentors.map((m) => {
-              const hasSlots = m.openSlots > 0;
-              return (
-                <View key={m.id} style={styles.mentorCard}>
-                  {/* Left: Avatar */}
-                  <View style={styles.avatarBox}>
-                    {m.photo ? (
-                      <Image source={{ uri: m.photo }} style={styles.avatarImg} />
+                    {b.meetLink ? (
+                      <TouchableOpacity
+                        style={styles.joinMeetBtn}
+                        onPress={() =>
+                          Linking.openURL(b.meetLink!).catch(() =>
+                            Alert.alert('Cannot Open Link', 'Could not open the Google Meet session.')
+                          )
+                        }
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="video" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.joinMeetBtnText}>Join Session (Google Meet) ›</Text>
+                      </TouchableOpacity>
                     ) : (
-                      <Image
-                        source={require('../assets/images/logo.png')}
-                        style={styles.crestLogoAvatar}
-                        resizeMode="contain"
-                      />
+                      <View style={styles.meetPendingPill}>
+                        <Feather name="info" size={13} color="#0369A1" />
+                        <Text style={styles.meetPendingText}>
+                          Google Meet link will appear here before your session starts.
+                        </Text>
+                      </View>
                     )}
                   </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : (
+          /* ======================================================== */
+          /*  FIND MENTORS TAB                                        */
+          /* ======================================================== */
+          <View>
+            {/* Search Bar */}
+            <View style={styles.searchBarWrap}>
+              <Feather name="search" size={18} color="#94A3B8" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search mentor, batch or..."
+                placeholderTextColor="#94A3B8"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Feather name="x" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
-                  {/* Middle: Details */}
-                  <View style={styles.mentorInfo}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.mentorName} numberOfLines={1}>
-                        {m.name}
-                      </Text>
-                      {m.verified && (
-                        <Ionicons name="checkmark-circle" size={17} color="#0284C7" />
-                      )}
-                    </View>
+            {/* Title Block */}
+            <View style={styles.titleSection}>
+              <Text style={styles.pageTitle}>1-on-1 Mentorship Sessions</Text>
+              <Text style={styles.pageSubtitle}>
+                Book live personalized guidance with the mentors of your{' '}
+                <Text style={styles.goalBold}>{goal?.name || 'JEE'}</Text> courses.{' '}
+                <Text style={styles.changeGoalLink} onPress={handleOpenGoalModal}>
+                  Change goal
+                </Text>
+              </Text>
+            </View>
 
-                    {m.headline ? (
-                      <Text style={styles.bioBullet} numberOfLines={1}>
-                        • {m.headline}
-                      </Text>
-                    ) : null}
-                    {m.about ? (
-                      <Text style={styles.bioSub} numberOfLines={2}>
-                        {m.about}
-                      </Text>
-                    ) : null}
+            {/* Filter Controls Row */}
+            <View style={styles.filterRow}>
+              <View style={styles.filterPillActive}>
+                <Ionicons name="school" size={15} color="#FFFFFF" />
+                <Text style={styles.filterPillActiveText}>Batch Mentor</Text>
+              </View>
 
-                    {/* Availability Badge */}
-                    <View style={[styles.slotBadge, hasSlots ? styles.slotBadgeGreen : styles.slotBadgeGrey]}>
-                      <View style={[styles.slotDot, hasSlots ? styles.slotDotGreen : styles.slotDotGrey]} />
-                      <Text style={[styles.slotBadgeText, hasSlots ? styles.slotTextGreen : styles.slotTextGrey]}>
-                        {hasSlots ? `${m.openSlots} slots open` : 'No slots yet'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Right: Book 1:1 Action Button */}
+              <View style={styles.filterRight}>
+                <Text style={styles.countText}>
+                  Showing <Text style={styles.countBold}>{mentors.length}</Text> of {totalCount || mentors.length} mentors
+                </Text>
+                <View style={styles.viewToggleGroup}>
                   <TouchableOpacity
-                    style={styles.bookBtn}
-                    activeOpacity={0.85}
-                    onPress={() => handleOpenBooking(m)}
+                    style={[styles.toggleBtn, viewMode === 'grid' && styles.toggleBtnActive]}
+                    onPress={() => setViewMode('grid')}
                   >
-                    <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
-                    <Text style={styles.bookBtnText}>Book 1:1</Text>
+                    <Feather name="grid" size={14} color={viewMode === 'grid' ? '#0F3C45' : '#94A3B8'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+                    onPress={() => setViewMode('list')}
+                  >
+                    <Feather name="list" size={14} color={viewMode === 'list' ? '#0F3C45' : '#94A3B8'} />
                   </TouchableOpacity>
                 </View>
-              );
-            })}
+              </View>
+            </View>
+
+            {/* Mentors List */}
+            {loading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#0F3C45" />
+                <Text style={styles.loadingText}>Loading verified mentors...</Text>
+              </View>
+            ) : mentors.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Feather name="users" size={36} color="#94A3B8" />
+                <Text style={styles.emptyTitle}>No Mentors Available</Text>
+                <Text style={styles.emptySub}>
+                  We are onboarding top mentors for {goal?.name || 'this goal'}. Check back soon or try another goal.
+                </Text>
+                <TouchableOpacity style={styles.changeGoalBtn} onPress={handleOpenGoalModal}>
+                  <Text style={styles.changeGoalBtnText}>Change Exam Goal</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.mentorsContainer}>
+                {mentors.map((m) => {
+                  const hasSlots = m.openSlots > 0;
+                  return (
+                    <View key={m.id} style={styles.mentorCard}>
+                      <View style={styles.avatarBox}>
+                        {m.photo ? (
+                          <Image source={{ uri: m.photo }} style={styles.avatarImg} />
+                        ) : (
+                          <Image
+                            source={require('../assets/images/logo.png')}
+                            style={styles.crestLogoAvatar}
+                            resizeMode="contain"
+                          />
+                        )}
+                      </View>
+
+                      <View style={styles.mentorInfo}>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.mentorName}>{m.name}</Text>
+                          {m.verified && <MaterialCommunityIcons name="check-decagram" size={15} color="#0284C7" />}
+                        </View>
+
+                        {m.courses && m.courses.length > 0 && (
+                          <Text style={styles.bioBullet} numberOfLines={1}>
+                            {m.courses.map((c) => c.title).join(', ')}
+                          </Text>
+                        )}
+
+                        <Text style={styles.bioSub} numberOfLines={2}>
+                          {m.headline || m.about || 'IITian • Experienced Educator & Rank Producer'}
+                        </Text>
+
+                        <View style={[styles.slotBadge, hasSlots ? styles.slotBadgeGreen : styles.slotBadgeGrey]}>
+                          <View style={[styles.slotDot, hasSlots ? styles.slotDotGreen : styles.slotDotGrey]} />
+                          <Text style={[styles.slotBadgeText, hasSlots ? styles.slotTextGreen : styles.slotTextGrey]}>
+                            {hasSlots ? `${m.openSlots} Slots Available` : 'No slots yet'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.bookBtn, !hasSlots && { opacity: 0.6 }]}
+                        activeOpacity={0.8}
+                        onPress={() => handleOpenBooking(m)}
+                        disabled={!hasSlots}
+                      >
+                        <Text style={styles.bookBtnText}>Book 1:1</Text>
+                        <Feather name="arrow-right" size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
 
-      {/* Booking Slot Modal */}
-      <Modal visible={Boolean(selectedMentor)} transparent animationType="slide">
+      {/* Booking Slot Modal with 30s Live Hold Timer */}
+      <Modal visible={!!selectedMentor} transparent animationType="slide" onRequestClose={handleCloseBookingModal}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
@@ -288,49 +502,64 @@ export default function MentorshipScreen() {
                 <Text style={styles.modalTitle}>Book 1:1 Mentorship</Text>
                 <Text style={styles.modalSubtitle}>With {selectedMentor?.name}</Text>
               </View>
-              <TouchableOpacity onPress={() => setSelectedMentor(null)}>
+              <TouchableOpacity onPress={handleCloseBookingModal}>
                 <Feather name="x" size={22} color="#0F3C45" />
               </TouchableOpacity>
             </View>
 
+            {holdSeconds > 0 && (
+              <View style={styles.holdBanner}>
+                <Ionicons name="timer-outline" size={16} color="#B45309" />
+                <Text style={styles.holdBannerText}>
+                  Slot reserved for{' '}
+                  <Text style={{ fontFamily: Theme.fonts.bold }}>
+                    0:{holdSeconds < 10 ? `0${holdSeconds}` : holdSeconds}
+                  </Text>
+                </Text>
+              </View>
+            )}
+
             {slotsLoading ? (
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                <ActivityIndicator color="#0F3C45" />
-                <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>Fetching open calendar slots...</Text>
-              </View>
-            ) : mentorSlots.length === 0 ? (
-              <View style={{ paddingVertical: 30, alignItems: 'center' }}>
-                <Feather name="calendar" size={32} color="#94A3B8" />
-                <Text style={{ marginTop: 8, fontSize: 15, fontFamily: Theme.fonts.bold, color: '#0F3C45' }}>
-                  No Open Slots Currently
-                </Text>
-                <Text style={{ textAlign: 'center', color: '#64748B', fontSize: 12, marginTop: 4, paddingHorizontal: 20 }}>
-                  {selectedMentor?.name} has not published new slots for this week. Please check back soon or book another mentor.
+                <ActivityIndicator size="large" color="#0F3C45" />
+                <Text style={{ marginTop: 10, color: '#64748B', fontFamily: Theme.fonts.regular }}>
+                  Fetching available slots...
                 </Text>
               </View>
             ) : (
-              <ScrollView style={{ maxHeight: 250 }} showsVerticalScrollIndicator={false}>
-                <Text style={styles.fieldLabel}>Select Session Slot</Text>
-                {mentorSlots.map((s) => {
-                  const dateStr = new Date(s.startsAt).toLocaleString('en-IN', {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  });
-                  const isSelected = selectedSlot?.id === s.id;
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      style={[styles.slotItem, isSelected && styles.slotItemSelected]}
-                      onPress={() => setSelectedSlot(s)}
-                    >
-                      <Feather name="clock" size={16} color={isSelected ? '#0F3C45' : '#64748B'} />
-                      <Text style={[styles.slotItemText, isSelected && styles.slotItemTextSelected]}>
-                        {dateStr} ({s.durationMinutes || 30} mins)
-                      </Text>
-                      {isSelected && <Ionicons name="checkmark-circle" size={18} color="#0F3C45" />}
-                    </TouchableOpacity>
-                  );
-                })}
+              <ScrollView style={{ maxHeight: 300 }}>
+                <Text style={styles.fieldLabel}>Select Available Slot</Text>
+                {mentorSlots.length === 0 ? (
+                  <Text style={{ color: '#94A3B8', fontFamily: Theme.fonts.regular, marginBottom: 16 }}>
+                    No slots are currently open for this mentor.
+                  </Text>
+                ) : (
+                  mentorSlots.map((s) => {
+                    const isSelected = selectedSlot?.id === s.id;
+                    const dateStr = new Date(s.startsAt).toLocaleDateString('en-IN', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    });
+                    return (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={[styles.slotItem, isSelected && styles.slotItemSelected]}
+                        onPress={() => handleSelectSlot(s)}
+                        activeOpacity={0.8}
+                      >
+                        <Feather name="clock" size={16} color={isSelected ? '#0F3C45' : '#64748B'} />
+                        <Text style={[styles.slotItemText, isSelected && styles.slotItemTextSelected]}>
+                          {dateStr} ({s.durationMinutes || 30} mins)
+                        </Text>
+                        {isSelected && <Ionicons name="checkmark-circle" size={18} color="#0F3C45" />}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
 
                 <Text style={[styles.fieldLabel, { marginTop: 14 }]}>What would you like to discuss?</Text>
                 <TextInput
@@ -388,7 +617,8 @@ export default function MentorshipScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </LockedFeatureGuard>
   );
 }
 
@@ -421,6 +651,47 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: Theme.fonts.bold,
     color: '#0F3C45',
+  },
+  topTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  topTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  topTabBtnActive: {
+    backgroundColor: '#0F3C45',
+    borderColor: '#0F3C45',
+  },
+  topTabBtnText: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.medium,
+    color: '#64748B',
+  },
+  topTabBtnTextActive: {
+    color: '#FFFFFF',
+    fontFamily: Theme.fonts.bold,
+  },
+  bookingsCountPill: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  bookingsCountPillText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: Theme.fonts.bold,
   },
   searchBarWrap: {
     flexDirection: 'row',
@@ -671,6 +942,139 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.bold,
     color: '#FFFFFF',
   },
+
+  // Sessions Tab
+  sessionsContainer: {
+    marginTop: 4,
+  },
+  bookingsList: {
+    gap: 12,
+  },
+  bookingCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#0F3C45',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  bookingCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  mentorAvatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#0F3C45',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mentorAvatarInitials: {
+    fontSize: 14,
+    fontFamily: Theme.fonts.bold,
+    color: '#FFFFFF',
+  },
+  bookingHeaderInfo: {
+    flex: 1,
+  },
+  bookingMentorName: {
+    fontSize: 15,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
+  },
+  bookingCourseTitle: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.medium,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  confirmedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  confirmedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  confirmedText: {
+    fontSize: 10.5,
+    fontFamily: Theme.fonts.bold,
+    color: '#16A34A',
+  },
+  bookingTopicBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  bookingTopicLabel: {
+    fontSize: 10.5,
+    fontFamily: Theme.fonts.bold,
+    color: '#64748B',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  bookingTopicText: {
+    fontSize: 12.5,
+    fontFamily: Theme.fonts.regular,
+    color: '#0F3C45',
+  },
+  bookingTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  bookingTimeText: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.bold,
+    color: '#0F3C45',
+  },
+  joinMeetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  joinMeetBtnText: {
+    fontSize: 12.5,
+    fontFamily: Theme.fonts.bold,
+    color: '#FFFFFF',
+  },
+  meetPendingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  meetPendingText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: Theme.fonts.medium,
+    color: '#0369A1',
+  },
+
   // Modal
   modalOverlay: {
     flex: 1,
@@ -688,7 +1092,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 18,
@@ -700,6 +1104,21 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
     marginTop: 2,
+  },
+  holdBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  holdBannerText: {
+    fontSize: 12,
+    fontFamily: Theme.fonts.medium,
+    color: '#B45309',
   },
   fieldLabel: {
     fontSize: 12,
@@ -761,4 +1180,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-

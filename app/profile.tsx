@@ -417,7 +417,7 @@ export default function ProfileScreen() {
 
             {/* Enrolled Courses & Tracks */}
             <View style={styles.coursesSection}>
-              <Text style={styles.coursesSectionLabel}>ENROLLED COURSES & TRACKS</Text>
+              <Text style={styles.coursesSectionLabel}>ENROLLED BATCHES & TRACKS</Text>
               <View style={styles.coursePillsWrap}>
                 {enrolledCourseList.map((courseTitle, idx) => (
                   <View key={idx} style={styles.coursePill}>

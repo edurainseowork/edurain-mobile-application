@@ -6,19 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
-  Modal,
-  Platform,
-  Alert,
   TextInput,
   Dimensions,
   RefreshControl,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { io } from 'socket.io-client';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
+import { API_BASE_URL, SOCKET_URL } from '../../api/client';
+import { CourseCardSkeleton } from '../../components/Shared/Skeleton';
 import {
   fetchCourses,
   fetchCategories,
@@ -28,14 +27,7 @@ import {
   Banner,
   getDisplayPlans,
   paiseToRupees,
-  DisplayPlan,
 } from '../../api/courses';
-import {
-  createRazorpayOrder,
-  verifyRazorpayPayment,
-  verifyGooglePlayPurchase,
-  verifyAppleIapPurchase,
-} from '../../api/payments';
 import { AppHeader } from '../../components/Home/AppHeader';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -53,31 +45,19 @@ export default function CoursesScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Checkout & Plan selection state
-  const [purchasingCourse, setPurchasingCourse] = useState<Course | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<DisplayPlan | null>(null);
-  const [couponCode, setCouponCode] = useState('');
-  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
       const [cList, catList, bList] = await Promise.all([
         fetchCourses(isRefresh),
-        fetchCategories(),
-        fetchBanners('mobile_courses'),
+        fetchCategories(isRefresh),
+        fetchBanners('mobile_courses', isRefresh),
       ]);
 
       if (Array.isArray(cList)) setCourses(cList);
       if (Array.isArray(catList) && catList.length > 0) setCategories(catList);
-
-      if (Array.isArray(bList) && bList.length > 0) {
-        setBanners(bList);
-      } else {
-        const homeBanners = await fetchBanners('home');
-        if (Array.isArray(homeBanners) && homeBanners.length > 0) setBanners(homeBanners);
-      }
+      if (Array.isArray(bList)) setBanners(bList);
     } catch {
       // Silently maintain local cached data
     } finally {
@@ -90,6 +70,35 @@ export default function CoursesScreen() {
     // Initial fetch
     setLoading(true);
     loadData(false);
+  }, [loadData]);
+
+  // Real-time synchronization when tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadData(true);
+    }, [loadData])
+  );
+
+  // Real-time Socket.io listener for dynamic tiles, categories & banners
+  useEffect(() => {
+    let socket: any = null;
+    try {
+      socket = (io as any)(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      } as any);
+
+      const handleUpdate = () => {
+        loadData(true);
+      };
+
+      socket?.on?.('catalog_updated', handleUpdate);
+      socket?.on?.('banners_updated', handleUpdate);
+    } catch {}
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
   }, [loadData]);
 
   const onRefresh = useCallback(() => {
@@ -129,142 +138,7 @@ export default function CoursesScreen() {
   };
 
   const handleEnrollClick = (course: Course) => {
-    if (isEnrolled(course.id)) {
-      handleOpenCourse(course);
-      return;
-    }
-
-    const availablePlans = getDisplayPlans(course);
-    setSelectedPlan(availablePlans[0]);
-    setPurchasingCourse(course);
-    setCouponCode('');
-    setIsCheckoutModalOpen(true);
-  };
-
-  const handleAppleIapCheckout = async () => {
-    if (!purchasingCourse || !selectedPlan) return;
-    setCheckoutLoading(true);
-    try {
-      const appleProductId =
-        purchasingCourse.playProductId ||
-        `in.edurain.course.${purchasingCourse.id}${selectedPlan.id !== 'basic' ? `.${selectedPlan.id}` : ''}`;
-
-      Alert.alert(
-        'Apple In-App Purchase',
-        `Course: ${purchasingCourse.title}\nPlan: ${selectedPlan.name}\nPrice: ₹${selectedPlan.price}\n\nConfirm In-App Purchase with your Apple Account?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setCheckoutLoading(false),
-          },
-          {
-            text: 'Purchase Now',
-            onPress: async () => {
-              try {
-                const res = await verifyAppleIapPurchase({
-                  courseId: purchasingCourse.id,
-                  productId: appleProductId,
-                  transactionId: `apple_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-                });
-                await refreshUserData();
-                setIsCheckoutModalOpen(false);
-                Alert.alert('Congratulations! 🎉', res.message || 'Course unlocked via Apple In-App Purchase!');
-              } catch (iapErr: any) {
-                Alert.alert('Purchase Error', iapErr.message || 'Verification failed');
-              } finally {
-                setCheckoutLoading(false);
-              }
-            },
-          },
-        ]
-      );
-    } catch (err: any) {
-      Alert.alert('Purchase Error', err.message || 'Could not initiate Apple In-App Purchase');
-      setCheckoutLoading(false);
-    }
-  };
-
-  const handleRazorpayAlternativeCheckout = async () => {
-    if (!purchasingCourse || !selectedPlan) return;
-    setCheckoutLoading(true);
-    try {
-      const order = await createRazorpayOrder(purchasingCourse.id, couponCode);
-
-      Alert.alert(
-        'In-App Payment (Razorpay)',
-        `Order ID: ${order.orderId}\nPlan: ${selectedPlan.name}\nAmount: ₹${selectedPlan.price}\n\nProceed with Razorpay Checkout?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setCheckoutLoading(false),
-          },
-          {
-            text: 'Complete Payment',
-            onPress: async () => {
-              try {
-                await verifyRazorpayPayment({
-                  courseId: purchasingCourse.id,
-                  razorpay_order_id: order.orderId,
-                  razorpay_payment_id: `pay_${Date.now()}`,
-                  razorpay_signature: `sig_${Date.now()}`,
-                });
-                await refreshUserData();
-                setIsCheckoutModalOpen(false);
-                Alert.alert('Congratulations! 🎉', 'You are now enrolled in this batch.');
-              } catch (verifyErr: any) {
-                Alert.alert('Payment Error', verifyErr.message || 'Verification failed');
-              } finally {
-                setCheckoutLoading(false);
-              }
-            },
-          },
-        ]
-      );
-    } catch (err: any) {
-      Alert.alert('Order Failed', err.message || 'Could not initiate checkout');
-      setCheckoutLoading(false);
-    }
-  };
-
-  const handleGooglePlayCheckout = async () => {
-    if (!purchasingCourse || !selectedPlan) return;
-    setCheckoutLoading(true);
-    try {
-      Alert.alert(
-        'Google Play In-App Billing',
-        `Initiating Google Play in-app purchase for: ${purchasingCourse.title}\nPlan: ${selectedPlan.name}\nPrice: ₹${selectedPlan.price}\n\nConfirm purchase?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setCheckoutLoading(false),
-          },
-          {
-            text: 'Confirm Google Play',
-            onPress: async () => {
-              try {
-                const res = await verifyGooglePlayPurchase({
-                  courseId: purchasingCourse.id,
-                  purchaseToken: `token_${Date.now()}_play`,
-                  productId: purchasingCourse.playProductId || 'edurain_batch_standard',
-                });
-                await refreshUserData();
-                setIsCheckoutModalOpen(false);
-                Alert.alert('Congratulations! 🎉', res.message || 'Course unlocked via Google Play Billing!');
-              } catch (playErr: any) {
-                Alert.alert('Google Play Error', playErr.message || 'Verification failed');
-              } finally {
-                setCheckoutLoading(false);
-              }
-            },
-          },
-        ]
-      );
-    } finally {
-      setCheckoutLoading(false);
-    }
+    handleOpenCourse(course);
   };
 
   return (
@@ -325,7 +199,7 @@ export default function CoursesScreen() {
       >
         {/* Title: Academic Batches & Crash Courses */}
         <View style={styles.titleWrap}>
-          <Text style={styles.screenTitle}>Academic Batches & Crash Courses</Text>
+          <Text style={styles.screenTitle}>Academic Batches & Target Programs</Text>
         </View>
 
         {/* Category Filter Pills (matching Screenshot 2) */}
@@ -350,7 +224,7 @@ export default function CoursesScreen() {
                   selectedCategory === 'All' && styles.categoryChipTextActive,
                 ]}
               >
-                All Courses ({courses.length})
+                All Batches ({courses.length})
               </Text>
             </TouchableOpacity>
 
@@ -416,9 +290,9 @@ export default function CoursesScreen() {
 
         {/* Dynamic Course Cards List */}
         {loading && courses.length === 0 ? (
-          <View style={styles.loaderWrap}>
-            <ActivityIndicator size="large" color="#0B3B42" />
-            <Text style={styles.loaderText}>Syncing latest batches...</Text>
+          <View style={{ paddingHorizontal: 16 }}>
+            <CourseCardSkeleton />
+            <CourseCardSkeleton />
           </View>
         ) : filteredCourses.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -532,20 +406,43 @@ export default function CoursesScreen() {
                       </Text>
                     </View>
 
+                    {/* Row 3.5: Dynamic Course Metrics (Lessons & Students Enrolled) */}
+                    {(course.totalLessons || course.studentsEnrolled) ? (
+                      <View style={styles.metricsPillsRow}>
+                        {course.totalLessons ? (
+                          <View style={styles.metricPill}>
+                            <Feather name="video" size={11} color="#175A67" />
+                            <Text style={styles.metricPillText}>
+                              {course.totalLessons} {course.totalLessons === 1 ? 'lesson' : 'lessons'}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {course.studentsEnrolled ? (
+                          <View style={styles.metricPill}>
+                            <Ionicons name="people-outline" size={12} color="#175A67" />
+                            <Text style={styles.metricPillText}>
+                              {course.studentsEnrolled.toLocaleString('en-IN')}+ enrolled
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+
                     {/* Row 4: Status Dot + Enrolments Open */}
                     <View style={styles.statusRow}>
                       <View
                         style={[
                           styles.statusDot,
-                          { backgroundColor: discount > 0 ? '#F59E0B' : '#10B981' },
+                          { backgroundColor: '#E11D48' },
                         ]}
                       />
                       <Text style={styles.statusText}>
                         {priceInRupees === 0
-                          ? 'Free Course • Enrolments open'
+                          ? 'Free Batch • '
                           : discount > 0
-                          ? `${discount}% OFF • Enrolments open`
-                          : 'Enrolments open'}
+                          ? `${discount}% OFF • `
+                          : ''}<Text style={styles.liveMentorHighlight}>Live Mentor Classes</Text>
                       </Text>
                     </View>
 
@@ -617,158 +514,6 @@ export default function CoursesScreen() {
           </View>
         )}
       </ScrollView>
-
-      {/* Plan Selection & Checkout Sheet Modal */}
-      <Modal visible={isCheckoutModalOpen} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalHeaderTitle}>Select Plan & Checkout</Text>
-                <Text style={styles.modalHeaderSub}>
-                  {Platform.OS === 'ios' ? 'Apple In-App Purchase' : 'Official Course Checkout'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setIsCheckoutModalOpen(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Feather name="x" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {purchasingCourse && (
-              <View style={styles.orderSummary}>
-                <Text style={styles.orderCourseTitle}>{purchasingCourse.title}</Text>
-                <Text style={styles.orderCourseCat}>{purchasingCourse.category}</Text>
-              </View>
-            )}
-
-            {/* Selectable Plans (Basic, Pro, Pro Max) */}
-            {purchasingCourse && getDisplayPlans(purchasingCourse).length > 1 && (
-              <View style={styles.planSelectionContainer}>
-                <Text style={styles.planSelectHeader}>Choose Academic Tier</Text>
-                <View style={styles.plansRow}>
-                  {getDisplayPlans(purchasingCourse).map((plan) => {
-                    const isSelected = selectedPlan?.id === plan.id;
-                    return (
-                      <TouchableOpacity
-                        key={plan.id}
-                        style={[styles.planCard, isSelected && styles.planCardActive]}
-                        onPress={() => setSelectedPlan(plan)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.planCardName, isSelected && styles.planCardNameActive]}>
-                          {plan.name}
-                        </Text>
-                        <Text style={[styles.planCardPrice, isSelected && styles.planCardPriceActive]}>
-                          ₹{plan.price.toLocaleString('en-IN')}
-                        </Text>
-                        {plan.features.length > 0 && (
-                          <Text style={styles.planFeaturesCount} numberOfLines={1}>
-                            {plan.features.length} inclusions
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-
-            {/* Selected Plan Details */}
-            {selectedPlan && (
-              <View style={styles.selectedPlanSummary}>
-                <Text style={styles.summaryPlanTitle}>
-                  {selectedPlan.name} Plan: ₹{selectedPlan.price.toLocaleString('en-IN')}
-                </Text>
-                {selectedPlan.features.length > 0 && (
-                  <View style={styles.featuresList}>
-                    {selectedPlan.features.slice(0, 3).map((f, i) => (
-                      <View key={i} style={styles.featureBullet}>
-                        <Feather name="check" size={13} color="#059669" />
-                        <Text style={styles.featureBulletText}>{f}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Coupon Code Input */}
-            <View style={styles.couponWrap}>
-              <TextInput
-                style={styles.couponInput}
-                placeholder="Apply coupon code..."
-                placeholderTextColor="#94A3B8"
-                value={couponCode}
-                onChangeText={setCouponCode}
-                autoCapitalize="characters"
-              />
-            </View>
-
-            {/* Payment Options */}
-            {Platform.OS === 'ios' ? (
-              <TouchableOpacity
-                style={styles.billingOption}
-                onPress={handleAppleIapCheckout}
-                disabled={checkoutLoading}
-              >
-                <View style={styles.billingOptionLeft}>
-                  <View style={[styles.billingIcon, { backgroundColor: '#000000' }]}>
-                    <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
-                  </View>
-                  <View>
-                    <Text style={styles.billingOptionTitle}>Apple In-App Purchase</Text>
-                    <Text style={styles.billingOptionSub}>Unlock course instantly with Apple ID</Text>
-                  </View>
-                </View>
-                <Feather name="chevron-right" size={18} color="#64748B" />
-              </TouchableOpacity>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={styles.billingOption}
-                  onPress={handleRazorpayAlternativeCheckout}
-                  disabled={checkoutLoading}
-                >
-                  <View style={styles.billingOptionLeft}>
-                    <View style={[styles.billingIcon, { backgroundColor: '#E0F2FE' }]}>
-                      <Ionicons name="card" size={20} color="#0284C7" />
-                    </View>
-                    <View>
-                      <Text style={styles.billingOptionTitle}>Pay via UPI, Cards, NetBanking</Text>
-                      <Text style={styles.billingOptionSub}>Instant Access • In-App Razorpay</Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={18} color="#64748B" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.billingOption}
-                  onPress={handleGooglePlayCheckout}
-                  disabled={checkoutLoading}
-                >
-                  <View style={styles.billingOptionLeft}>
-                    <View style={[styles.billingIcon, { backgroundColor: '#FEF3C7' }]}>
-                      <Ionicons name="logo-google-playstore" size={20} color="#D97706" />
-                    </View>
-                    <View>
-                      <Text style={styles.billingOptionTitle}>Google Play Billing</Text>
-                      <Text style={styles.billingOptionSub}>Pay with Google Play Balance</Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={18} color="#64748B" />
-                </TouchableOpacity>
-              </>
-            )}
-
-            {checkoutLoading && (
-              <ActivityIndicator style={{ marginTop: 14 }} color="#0B3B42" size="small" />
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -881,7 +626,7 @@ const styles = StyleSheet.create({
   },
   bannerCard: {
     width: SCREEN_WIDTH - 32,
-    height: Math.round((SCREEN_WIDTH - 32) / 1.8),
+    height: Math.round((SCREEN_WIDTH - 32) * (320 / 720)),
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0F3C45',
@@ -979,7 +724,7 @@ const styles = StyleSheet.create({
   },
   thumbnailContainer: {
     width: '100%',
-    aspectRatio: 384 / 240,
+    aspectRatio: 384 / 286,
     position: 'relative',
     backgroundColor: '#FFF6EA',
   },
@@ -1071,6 +816,28 @@ const styles = StyleSheet.create({
     color: '#64748B',
     flex: 1,
   },
+  metricsPillsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  metricPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EAF3F1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  metricPillText: {
+    fontSize: 11,
+    fontFamily: Theme.fonts.semiBold,
+    color: '#175A67',
+  },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1081,6 +848,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  liveMentorHighlight: {
+    color: '#E11D48',
+    fontFamily: Theme.fonts.bold,
   },
   statusText: {
     fontSize: 12,

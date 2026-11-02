@@ -196,9 +196,13 @@ AsyncStorage.getItem(BANNERS_CACHE_KEY).then((data) => {
 
 export async function fetchCourses(forceNetwork: boolean = false): Promise<Course[]> {
   try {
-    const res = await apiFetch<{ success?: boolean; data?: Course[] }>('/api/courses');
+    const query = forceNetwork ? `?_t=${Date.now()}&nocache=1` : '';
+    const res = await apiFetch<{ success?: boolean; data?: Course[] }>(
+      `/api/courses${query}`,
+      forceNetwork ? { headers: { 'Cache-Control': 'no-cache, no-store' } } : {}
+    );
     const list = Array.isArray(res) ? res : res?.data || [];
-    if (Array.isArray(list) && list.length > 0) {
+    if (Array.isArray(list)) {
       inMemoryCourses = list;
       AsyncStorage.setItem(COURSES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
       return list;
@@ -224,37 +228,61 @@ export async function fetchCourses(forceNetwork: boolean = false): Promise<Cours
 }
 
 export async function fetchCourseById(id: number | string): Promise<Course | null> {
+  const str = String(id).trim();
   try {
-    const res = await apiFetch<{ success?: boolean; data?: Course }>(`/api/courses/${id}`);
+    const res = await apiFetch<{ success?: boolean; data?: Course }>(`/api/courses/${encodeURIComponent(str)}`);
     const found = (res as any)?.data || res;
     if (found && found.id) return found;
   } catch {}
 
-  const local = inMemoryCourses.find((c) => String(c.id) === String(id));
+  const trailingMatch = str.match(/-?(\d+)$/);
+  const trailingId = trailingMatch ? Number(trailingMatch[1]) : null;
+
+  const local = inMemoryCourses.find(
+    (c) =>
+      String(c.id) === str ||
+      (trailingId !== null && c.id === trailingId)
+  );
   if (local) return local;
+
+  const cleanSearch = str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (cleanSearch) {
+    const byTitle = inMemoryCourses.find((c) => {
+      const cleanTitle = c.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanTitle === cleanSearch || cleanTitle.includes(cleanSearch) || cleanSearch.includes(cleanTitle);
+    });
+    if (byTitle) return byTitle;
+  }
+
   return inMemoryCourses[0] || null;
 }
 
-export async function fetchCategories(): Promise<Category[]> {
-  if (inMemoryCategories && inMemoryCategories.length > 0) {
+export async function fetchCategories(forceNetwork: boolean = false): Promise<Category[]> {
+  if (!forceNetwork && inMemoryCategories && inMemoryCategories.length > 0) {
     return inMemoryCategories;
   }
 
-  try {
-    const cached = await AsyncStorage.getItem(CATEGORIES_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        inMemoryCategories = parsed;
-        return parsed;
+  if (!forceNetwork) {
+    try {
+      const cached = await AsyncStorage.getItem(CATEGORIES_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          inMemoryCategories = parsed;
+          return parsed;
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   try {
-    const res = await apiFetch<{ success?: boolean; data?: Category[] }>('/api/categories');
+    const query = forceNetwork ? `?_t=${Date.now()}&nocache=1` : '';
+    const res = await apiFetch<{ success?: boolean; data?: Category[] }>(
+      `/api/categories${query}`,
+      forceNetwork ? { headers: { 'Cache-Control': 'no-cache, no-store' } } : {}
+    );
     const list = Array.isArray(res) ? res : res?.data || [];
-    if (list.length > 0) {
+    if (Array.isArray(list) && list.length > 0) {
       inMemoryCategories = list;
       AsyncStorage.setItem(CATEGORIES_CACHE_KEY, JSON.stringify(list)).catch(() => {});
       return list;
@@ -278,6 +306,9 @@ export interface ContentItem {
   type: 'folder' | 'video' | 'pdf' | 'note' | 'quiz';
   mediaUrl: string | null;
   fileSize?: string | null;
+  subject?: string | null;
+  category?: string | null;
+  duration?: string | null;
   order: number;
 }
 
@@ -317,38 +348,60 @@ export async function fetchMyLiveClasses(): Promise<LiveClassItem[]> {
   }
 }
 
-export async function fetchBanners(placement: string = 'home'): Promise<Banner[]> {
+export async function fetchBanners(placement: string = 'home', forceNetwork: boolean = false): Promise<Banner[]> {
   const cacheKey = `${BANNERS_CACHE_KEY}_${placement}`;
 
-  try {
-    const cached = await AsyncStorage.getItem(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Return cached and refresh in background
-        apiFetch<{ success?: boolean; data?: Banner[] }>(`/api/banners?placement=${placement}`)
-          .then((res) => {
-            const list = Array.isArray(res) ? res : res?.data || [];
-            if (list.length > 0) {
-              AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
-            }
-          })
-          .catch(() => {});
-        return parsed;
+  // 1. Instant paint from cache if available and not forcing network
+  if (!forceNetwork) {
+    try {
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached !== null) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          // Sync fresh live banners in background
+          apiFetch<{ success?: boolean; data?: Banner[] }>(
+            `/api/banners?placement=${placement}&_t=${Date.now()}&nocache=1`,
+            { headers: { 'Cache-Control': 'no-cache, no-store' } }
+          )
+            .then((res) => {
+              const list = Array.isArray(res) ? res : res?.data;
+              if (Array.isArray(list)) {
+                AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
+              }
+            })
+            .catch(() => {});
+          return parsed;
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
+  // 2. Fresh fetch from server
   try {
-    const res = await apiFetch<{ success?: boolean; data?: Banner[] }>(`/api/banners?placement=${placement}`);
-    const list = Array.isArray(res) ? res : res?.data || [];
-    if (list.length > 0) {
-      AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
+    const res = await apiFetch<{ success?: boolean; data?: Banner[] }>(
+      `/api/banners?placement=${placement}&_t=${Date.now()}&nocache=1`,
+      { headers: { 'Cache-Control': 'no-cache, no-store' } }
+    );
+    const list = Array.isArray(res) ? res : res?.data;
+    if (Array.isArray(list)) {
+      // Save to cache even if empty array (e.g. all banners deleted in CMS)
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
       return list;
     }
+  } catch (err) {
+    console.warn(`[fetchBanners] Failed to fetch banners for ${placement}:`, err);
+  }
+
+  // 3. Fallback to cached if network failed
+  try {
+    const cached = await AsyncStorage.getItem(cacheKey);
+    if (cached !== null) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) return parsed;
+    }
   } catch {}
 
-  return placement === 'home' ? DEFAULT_BANNERS : [];
+  return [];
 }
 
 export async function fetchStudentGoal(): Promise<StudentGoal | null> {
@@ -428,9 +481,18 @@ export async function fetchActiveCourse(): Promise<Course | null> {
   return inMemoryCourses[1] || inMemoryCourses[0] || null;
 }
 
-export async function setActiveCourse(courseId: number): Promise<{ activeCourseId: number; goalCategoryId?: number | null }> {
+export async function setActiveCourse(courseId: number): Promise<{
+  activeCourseId: number;
+  goalCategoryId?: number | null;
+  goal?: StudentGoal | null;
+}> {
   try {
-    const res = await apiFetch<{ success: boolean; activeCourseId: number; goalCategoryId?: number | null }>('/api/me/active-course', {
+    const res = await apiFetch<{
+      success: boolean;
+      activeCourseId: number;
+      goalCategoryId?: number | null;
+      goal?: { id: number; name: string } | null;
+    }>('/api/me/active-course', {
       method: 'PUT',
       body: JSON.stringify({ courseId }),
     });
@@ -438,7 +500,15 @@ export async function setActiveCourse(courseId: number): Promise<{ activeCourseI
     if (course) {
       await AsyncStorage.setItem('edurain_active_course', JSON.stringify(course));
     }
-    return { activeCourseId: res?.activeCourseId ?? courseId, goalCategoryId: res?.goalCategoryId };
+    const goalObj = res?.goal ? { id: res.goal.id, name: res.goal.name } : null;
+    if (goalObj) {
+      await AsyncStorage.setItem('edurain_student_goal', JSON.stringify(goalObj));
+    }
+    return {
+      activeCourseId: res?.activeCourseId ?? courseId,
+      goalCategoryId: res?.goalCategoryId,
+      goal: goalObj,
+    };
   } catch {
     const course = await fetchCourseById(courseId);
     if (course) {
@@ -450,11 +520,27 @@ export async function setActiveCourse(courseId: number): Promise<{ activeCourseI
 
 export async function fetchEnrolledCourseIds(): Promise<number[]> {
   try {
-    const res = await apiFetch<{ success: boolean; data: number[] }>('/api/enrollments/enrolled-ids');
-    return Array.isArray(res?.data) ? res.data : [];
-  } catch {
-    return [];
-  }
+    // 1. Try Razorpay endpoint (same source of truth as web app)
+    const res = await apiFetch<any>('/api/razorpay/my-courses').catch(() =>
+      apiFetch<any>('/api/enrollments/enrolled-ids')
+    );
+    const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    const validIds = list.map(Number).filter((id: number) => Number.isInteger(id) && id > 0);
+    if (validIds.length > 0) {
+      await AsyncStorage.setItem('edurain_enrolled_ids', JSON.stringify(validIds));
+      return validIds;
+    }
+  } catch {}
+  try {
+    const cached = await AsyncStorage.getItem('edurain_enrolled_ids');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(Number).filter((id: number) => Number.isInteger(id) && id > 0);
+      }
+    }
+  } catch {}
+  return [];
 }
 
 export async function fetchSyncVersions(): Promise<SyncVersions | null> {
@@ -466,4 +552,82 @@ export async function fetchSyncVersions(): Promise<SyncVersions | null> {
     return null;
   }
 }
+
+export interface CourseFaq {
+  id: number;
+  question: string;
+  answer: string;
+}
+
+export async function fetchCourseFaqs(courseId: number): Promise<CourseFaq[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: CourseFaq[] }>(`/api/courses/${courseId}/faqs`);
+    const list = Array.isArray(res) ? res : res?.data || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface SupportContact {
+  id: number;
+  label: string;
+  phone: string;
+  whatsapp?: boolean;
+  sortOrder?: number;
+}
+
+export async function fetchSupportContacts(): Promise<SupportContact[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: SupportContact[] }>('/api/support-contacts');
+    const list = Array.isArray(res) ? res : res?.data || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface PublicCoupon {
+  code: string;
+  discountPercent: number;
+  maxDiscountAmount: number | null;
+}
+
+export interface AppliedCouponResult {
+  valid: boolean;
+  code: string;
+  discountPercent: number;
+  discountAmount: number; // in paise
+  finalPrice: number; // in paise
+  originalPrice: number; // in paise
+}
+
+export async function fetchPublicCoupons(courseId: number): Promise<PublicCoupon[]> {
+  try {
+    const res = await apiFetch<{ success?: boolean; data?: PublicCoupon[] }>(`/api/coupons/public?courseId=${courseId}`);
+    const list = Array.isArray(res) ? res : res?.data || [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function validateCoupon(code: string, courseId: number, plan: string = 'basic'): Promise<AppliedCouponResult> {
+  const res = await apiFetch<any>('/api/coupons/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code: code.trim().toUpperCase(), courseId, plan }),
+  });
+  if (!res || res.valid === false || res.error) {
+    throw new Error(res?.error || 'Invalid coupon code');
+  }
+  return {
+    valid: true,
+    code: res.code,
+    discountPercent: res.discountPercent ?? 0,
+    discountAmount: res.discountAmount ?? 0,
+    finalPrice: res.finalPrice ?? 0,
+    originalPrice: res.originalPrice ?? 0,
+  };
+}
+
 

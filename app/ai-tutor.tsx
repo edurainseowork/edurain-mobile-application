@@ -17,6 +17,8 @@ import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
 import { AppHeader } from '../components/Home/AppHeader';
 import { askEduAi, fetchAiQuota, AiChatMessage, QuotaStatus } from '../api/doubts';
+import { LockedFeatureGuard } from '../components/LockedFeatureGuard';
+import { FormattedAiMessage } from '../components/FormattedAiMessage';
 
 const SUGGESTED_PROMPTS = [
   "Explain Faraday's laws of induction with formula",
@@ -84,12 +86,23 @@ export default function AiTutorScreen() {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
+    const isIdentityQuery = /^(who\s+are\s+you|tum\s+kaun\s+ho|tumhara\s+naam\s+kya\s+hai|aapka\s+naam\s+kya\s+hai|what\s+is\s+your\s+name|aap\s+kaun\s+ho|naam\s+kya\s+hai|who\s+made\s+you)/i.test(
+      prompt.trim()
+    );
+
     try {
-      const res = await askEduAi(prompt, cohort);
+      let aiResponseText = '';
+      if (isIdentityQuery) {
+        aiResponseText = `### 1. Quick Concept Overview\nMai aapka **EduRain AI Academic Mentor** hu! 🎓\n\nMujhe EduRain platform par khas taur par aapke study doubts, IIT-JEE, NEET-UG aur CBSE Board exams ke numericals, derivations aur formulas solve karne ke liye train kiya gaya hai. Aap mujhse koi bhi academic sawal ya numerical puch sakte hain!`;
+      } else {
+        const res = await askEduAi(prompt, cohort);
+        aiResponseText = res.text;
+      }
+
       const aiMsg: AiChatMessage = {
         id: `ai_${Date.now()}`,
         sender: 'assistant',
-        content: res.text,
+        content: aiResponseText,
         timestamp: 'Just now',
       };
       setMessages((prev) => [...prev, aiMsg]);
@@ -107,7 +120,8 @@ export default function AiTutorScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <LockedFeatureGuard featureTitle="EduAI Tutor">
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* App Header */}
       <AppHeader
         onSearchPress={() => router.push('/(tabs)/courses')}
@@ -182,12 +196,14 @@ export default function AiTutorScreen() {
                 {!isMe && (
                   <View style={styles.aiBadgeRow}>
                     <MaterialCommunityIcons name="robot" size={14} color="#0D9488" />
-                    <Text style={styles.aiBadgeText}>EduAI Engine</Text>
+                    <Text style={styles.aiBadgeText}>EduRain AI Mentor</Text>
                   </View>
                 )}
-                <Text style={[styles.bubbleText, isMe ? styles.userText : styles.aiText]}>
-                  {m.content}
-                </Text>
+                {isMe ? (
+                  <Text style={[styles.bubbleText, styles.userText]}>{m.content}</Text>
+                ) : (
+                  <FormattedAiMessage content={m.content} />
+                )}
                 <Text style={[styles.bubbleTime, isMe ? styles.userTime : styles.aiTime]}>
                   {m.timestamp}
                 </Text>
@@ -239,7 +255,8 @@ export default function AiTutorScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </View>
+      </View>
+    </LockedFeatureGuard>
   );
 }
 

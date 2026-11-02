@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 40,
+    paddingBottom: 90,
     paddingTop: 8,
   },
   titleRow: {

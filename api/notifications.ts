@@ -42,6 +42,7 @@ AsyncStorage.getItem(ALL_READ_TIMESTAMP_KEY).then((data) => {
 }).catch(() => {});
 
 export async function registerPushToken(token: string): Promise<void> {
+  if (!token) return;
   try {
     await apiFetch('/api/notifications/push-token', {
       method: 'POST',
@@ -50,8 +51,8 @@ export async function registerPushToken(token: string): Promise<void> {
         platform: Platform.OS === 'ios' ? 'ios' : 'android',
       }),
     });
-  } catch (err) {
-    console.warn('[registerPushToken] Failed to register push token:', err);
+  } catch {
+    // Non-fatal if server is unreachable or user sync pending
   }
 }
 

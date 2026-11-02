@@ -26,6 +26,17 @@ export interface MentorSlot {
   held?: boolean;
 }
 
+export interface MentorBooking {
+  id: number;
+  mentorId: string;
+  mentorName?: string | null;
+  topic: string;
+  startsAt: string;
+  durationMinutes: number;
+  courseTitle?: string | null;
+  meetLink?: string | null;
+}
+
 export interface MentorListResponse {
   success: boolean;
   goal: { id: number; name: string } | null;
@@ -70,6 +81,25 @@ export async function fetchMentorDetails(mentorId: string): Promise<MentorDetail
   }
 }
 
+/** Reserves the slot for this student for 30 seconds to 2 minutes; rejects if held by another */
+export async function holdMentorSlot(slotId: number): Promise<{ success: boolean; heldUntil?: string; error?: string }> {
+  try {
+    const res = await apiFetch<{ heldUntil: string }>(`/api/mentorship/slots/${slotId}/hold`, { method: 'POST' });
+    return { success: true, heldUntil: res.heldUntil };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Slot is currently being booked by another student' };
+  }
+}
+
+/** Releases a held slot */
+export async function releaseMentorSlot(slotId: number): Promise<void> {
+  try {
+    await apiFetch(`/api/mentorship/slots/${slotId}/hold`, { method: 'DELETE' });
+  } catch {
+    // Ignore error on best-effort release
+  }
+}
+
 export async function bookMentorSlot(slotId: number, topic: string): Promise<{ success: boolean; error?: string; booking?: any }> {
   try {
     const res = await apiFetch<any>('/api/mentorship/bookings', {
@@ -82,3 +112,11 @@ export async function bookMentorSlot(slotId: number, topic: string): Promise<{ s
   }
 }
 
+export async function fetchMyBookings(): Promise<MentorBooking[]> {
+  try {
+    const res = await apiFetch<{ success: boolean; data: MentorBooking[] }>('/api/mentorship/bookings');
+    return Array.isArray(res?.data) ? res.data : [];
+  } catch {
+    return [];
+  }
+}

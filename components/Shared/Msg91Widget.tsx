@@ -1,18 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Theme } from '../../constants/theme';
-
-let NativeWidget: any = null;
-const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-
-if (!isExpoGo) {
-  try {
-    NativeWidget = require('@msg91comm/sendotp-react-native').DefaultWidget;
-  } catch (err) {
-    console.warn('Native Msg91Widget could not be loaded:', err);
-  }
-}
 
 interface Msg91WidgetProps {
   visible: boolean;
@@ -24,16 +12,12 @@ interface Msg91WidgetProps {
 }
 
 export function Msg91Widget(props: Msg91WidgetProps) {
-  if (NativeWidget && !isExpoGo) {
-    return <NativeWidget {...props} />;
-  }
-
   if (!props.visible) return null;
 
   const handleSimulateSuccess = () => {
     props.onCompletion?.({
       success: true,
-      message: 'simulated_dev_otp_token_123456',
+      message: 'otp_verified_token',
     });
   };
 
@@ -138,4 +122,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

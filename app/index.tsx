@@ -221,7 +221,7 @@ export default function AuthScreen() {
           resizeMode="contain"
         />
         <Text style={styles.loadingBrandTitle}>EDURAIN</Text>
-        <Text style={styles.loadingBrandSubtitle}>Empowering Aspirations With Precision Learning</Text>
+        <Text style={styles.loadingBrandSubtitle}>Victory Starts Here</Text>
         <ActivityIndicator size="large" color={Theme.colors.ink.primary} style={{ marginTop: 24 }} />
       </View>
     );
@@ -244,7 +244,7 @@ export default function AuthScreen() {
             resizeMode="contain"
           />
           <Text style={styles.brandTitle}>EDURAIN</Text>
-          <Text style={styles.brandSubtitle}>Empowering Aspirations With Precision Learning</Text>
+          <Text style={styles.brandSubtitle}>Victory Starts Here</Text>
         </View>
 
         {/* Auth Card */}

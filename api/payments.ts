@@ -2,10 +2,19 @@ import { apiFetch } from './client';
 
 export interface RazorpayOrderResponse {
   success: boolean;
-  orderId: string;
-  amount: number;
-  currency: string;
+  free?: boolean;
+  orderId?: string;
+  amount?: number;
+  currency?: string;
   keyId?: string;
+  courseTitle?: string;
+  plan?: string;
+  prefill?: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  };
+  courseId?: number;
 }
 
 export interface RazorpayVerifyPayload {
@@ -17,13 +26,15 @@ export interface RazorpayVerifyPayload {
 
 export async function createRazorpayOrder(
   courseId: number,
-  couponCode?: string
+  couponCode?: string,
+  plan: string = 'basic'
 ): Promise<RazorpayOrderResponse> {
   const res = await apiFetch<RazorpayOrderResponse>('/api/razorpay/order', {
     method: 'POST',
     body: JSON.stringify({
       courseId,
       couponCode: couponCode ? couponCode.trim().toUpperCase() : undefined,
+      plan,
     }),
   });
   return res;

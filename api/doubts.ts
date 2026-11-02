@@ -45,9 +45,13 @@ export interface QuotaStatus {
   questionsLeft: number;
 }
 
-export async function fetchStudentDoubtTickets(email?: string): Promise<DoubtTicket[]> {
+export async function fetchStudentDoubtTickets(email?: string, phone?: string, ids?: string): Promise<DoubtTicket[]> {
   try {
-    const query = email ? `?email=${encodeURIComponent(email.trim())}` : '';
+    const params = new URLSearchParams();
+    if (email) params.append('email', email.trim());
+    if (phone) params.append('phone', phone.trim());
+    if (ids) params.append('ids', ids.trim());
+    const query = params.toString() ? `?${params.toString()}` : '';
     const res = await apiFetch<any>(`/api/tickets/my${query}`);
     if (res?.data && Array.isArray(res.data)) {
       return res.data.map((t: any) => ({
@@ -71,6 +75,35 @@ export async function fetchStudentDoubtTickets(email?: string): Promise<DoubtTic
     return [];
   } catch {
     return [];
+  }
+}
+
+export async function fetchSingleDoubtTicket(ticketId: string): Promise<DoubtTicket | null> {
+  try {
+    const res = await apiFetch<any>(`/api/tickets/${ticketId}`);
+    const t = res?.data || res;
+    if (t && (t.id || t.ticketNumber)) {
+      return {
+        id: t.id,
+        ticketNumber: t.ticketNumber || t.id,
+        subject: t.subject || 'General',
+        title: t.title || t.questionSnippet || 'Doubt Session',
+        questionFull: t.questionFull || t.questionSnippet || '',
+        description: t.questionFull || t.questionSnippet || '',
+        examTag: t.examTag || 'JEE / NEET',
+        status: t.status || 'queue',
+        submittedAt: t.submittedAt,
+        submittedAtRelative: t.submittedAtRelative || 'Recently',
+        resolvedAt: t.resolvedAt,
+        assignedMentor: t.assignedTo?.name || 'EduRain Senior Faculty',
+        diagramUrl: t.diagramUrl,
+        diagramUrls: t.diagramUrls || (t.diagramUrl ? [t.diagramUrl] : []),
+        messages: t.messages || [],
+      };
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -112,6 +145,7 @@ export async function sendTicketReply(params: {
   text: string;
   senderName: string;
   attachmentUrl?: string;
+  attachments?: string[];
 }): Promise<{ success: boolean; error?: string }> {
   try {
     await apiFetch(`/api/tickets/${params.ticketId}/reply`, {
@@ -120,7 +154,8 @@ export async function sendTicketReply(params: {
         text: params.text,
         senderName: params.senderName,
         sender: 'student',
-        attachmentUrl: params.attachmentUrl,
+        attachmentUrl: params.attachmentUrl || (params.attachments && params.attachments[0]),
+        attachments: params.attachments || (params.attachmentUrl ? [params.attachmentUrl] : []),
       }),
     });
     return { success: true };
@@ -129,16 +164,48 @@ export async function sendTicketReply(params: {
   }
 }
 
+export async function sendResolutionAction(params: {
+  ticketId: string;
+  action: 'solved' | 'followup';
+  message?: string;
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await apiFetch<any>(`/api/tickets/${params.ticketId}/action`, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: params.action,
+        message: params.message || '',
+      }),
+    });
+    return { success: true, data: res?.data || res };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Failed to update ticket status' };
+  }
+}
+
 export async function askEduAi(prompt: string, cohort?: string): Promise<{ text: string }> {
   try {
     const res = await apiFetch<any>('/api/ai/doubt/stream', {
       method: 'POST',
       body: JSON.stringify({
-        message: prompt,
+        prompt: prompt.trim(),
+        message: prompt.trim(),
         cohort: cohort || 'JEE_MAIN_ADV',
       }),
     });
-    if (typeof res === 'string') return { text: res };
+    if (typeof res === 'string') {
+      const regex = /data:\s*({.*})/g;
+      let m: RegExpExecArray | null;
+      let combined = '';
+      while ((m = regex.exec(res)) !== null) {
+        try {
+          const parsed = JSON.parse(m[1]);
+          if (parsed.text) combined += parsed.text;
+        } catch {}
+      }
+      if (combined.trim()) return { text: combined.trim() };
+      return { text: res.replace(/data:\s*/g, '').trim() };
+    }
     return { text: res?.response || res?.text || res?.content || 'AI Tutor processed your inquiry.' };
   } catch (err: any) {
     return {

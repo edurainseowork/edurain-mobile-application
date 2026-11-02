@@ -1,0 +1,5 @@
+node-linker=hoisted
+ignore-scripts=true
+side-effects-cache=false
+shamefully-hoist=true
+

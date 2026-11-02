@@ -8,13 +8,22 @@
     "icon": "./assets/images/icon.png",
     "scheme": "edurain",
     "userInterfaceStyle": "automatic",
+    "androidNavigationBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#FFFFFF"
+    },
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#FFFFFF",
+      "translucent": true
+    },
     "splash": {
       "image": "./assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.edurainindia.app",
       "splash": {
         "image": "./assets/images/logo.png",
@@ -29,6 +38,7 @@
     },
     "android": {
       "package": "com.edurainindia.app",
+      "googleServicesFile": "./google-services.json",
       "splash": {
         "image": "./assets/images/logo.png",
         "resizeMode": "contain",
@@ -37,7 +47,9 @@
       "permissions": [
         "POST_NOTIFICATIONS",
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -50,6 +62,13 @@
         {
           "color": "#175A67",
           "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow EDURAIN to access your photo library to set your profile picture and upload study doubt images.",
+          "cameraPermission": "Allow EDURAIN to access your camera to take a profile picture and capture doubt problems."
         }
       ]
     ],
