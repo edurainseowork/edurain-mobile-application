@@ -1,7 +1,7 @@
 allowBuilds:
-  '@firebase/util': set this to true or false
-  dtrace-provider: set this to true or false
-  protobufjs: set this to true or false
+  '@firebase/util': false
+  dtrace-provider: false
+  protobufjs: false
 minimumReleaseAgeExclude:
   - '@expo/cli@58.1.18'
   - '@expo/config@58.0.10'
