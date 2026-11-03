@@ -24,6 +24,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { io } from 'socket.io-client';
 import { onValue, ref } from 'firebase/database';
 import { rtdb } from '../firebaseConfig';
@@ -73,6 +74,43 @@ async function saveStoredLocalTickets(tickets: DoubtTicket[]) {
   try {
     await AsyncStorage.setItem(LOCAL_TICKETS_KEY, JSON.stringify(tickets.slice(0, 50)));
   } catch {}
+}
+
+// Same limits as the website and the server: 1 photo when raising a doubt, 2 more in the chat, each under 1 MB
+const MAX_PHOTO_BYTES = 1024 * 1024;
+const MAX_CHAT_PHOTOS = 2;
+
+/** Photos the student has sent in the chat (the first message is the doubt itself and doesn't count). */
+const chatPhotosSent = (t: DoubtTicket | null) =>
+  (t?.messages || [])
+    .slice(1)
+    .filter((m) => m.sender === 'student')
+    .reduce((sum, m) => sum + (m.attachmentUrls?.length || (m.attachmentUrl ? 1 : 0)), 0);
+
+/**
+ * Phone photos are 3–10 MB. Shrink the long side and lower the JPEG quality step by step until the photo is
+ * under 1 MB, and return it as a data URL. null if even the smallest step is too big.
+ */
+async function compressPhoto(uri: string, width: number, height: number): Promise<string | null> {
+  const steps: [number, number][] = [
+    [1600, 0.7],
+    [1280, 0.6],
+    [1024, 0.5],
+    [800, 0.4],
+  ];
+  for (const [side, quality] of steps) {
+    const context = ImageManipulator.manipulate(uri);
+    if (Math.max(width, height) > side) context.resize(width >= height ? { width: side } : { height: side });
+    const image = await context.renderAsync();
+    try {
+      const { base64 } = await image.saveAsync({ base64: true, compress: quality, format: SaveFormat.JPEG });
+      if (base64 && base64.length * 0.75 <= MAX_PHOTO_BYTES) return `data:image/jpeg;base64,${base64}`;
+    } finally {
+      image.release();
+      context.release();
+    }
+  }
+  return null;
 }
 
 function mergeTicketLists(server: DoubtTicket[], local: DoubtTicket[]): DoubtTicket[] {
@@ -499,6 +537,25 @@ export default function AskYourDoubtScreen() {
 
   // 4. Reliable Camera & Gallery Image Picker (iPhone & Android Tested)
   const pickImage = async (isChatReply: boolean = false) => {
+    if (isChatReply && chatPhotosSent(selectedTicket) >= MAX_CHAT_PHOTOS) {
+      Alert.alert('Photo Limit Reached', `You can send up to ${MAX_CHAT_PHOTOS} photos in a doubt chat. Please describe it in text.`);
+      return;
+    }
+
+    // Every photo goes out compressed to under 1 MB
+    const usePhoto = async (asset: ImagePicker.ImagePickerAsset) => {
+      const base64Data = await compressPhoto(asset.uri, asset.width, asset.height);
+      if (!base64Data) {
+        Alert.alert('Photo Too Large', 'This photo could not be made smaller than 1 MB. Please try another one or crop it.');
+        return;
+      }
+      if (isChatReply) {
+        setReplyImage({ uri: asset.uri, base64: base64Data });
+      } else {
+        setSelectedImage({ uri: asset.uri, base64: base64Data });
+      }
+    };
+
     Alert.alert(
       'Attach Diagram / Screenshot',
       'Choose how you want to upload your doubt:',
@@ -520,18 +577,11 @@ export default function AskYourDoubtScreen() {
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ['images'],
                 allowsEditing: false,
-                quality: 0.65,
-                base64: true,
+                quality: 1,
               });
 
               if (!result.canceled && result.assets && result.assets.length > 0) {
-                const asset = result.assets[0];
-                const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
-                if (isChatReply) {
-                  setReplyImage({ uri: asset.uri, base64: base64Data });
-                } else {
-                  setSelectedImage({ uri: asset.uri, base64: base64Data });
-                }
+                await usePhoto(result.assets[0]);
               }
             } catch (err: any) {
               Alert.alert('Camera Error', 'Could not access camera: ' + (err?.message || 'Try again'));
@@ -554,18 +604,11 @@ export default function AskYourDoubtScreen() {
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ['images'],
                 allowsEditing: false,
-                quality: 0.7,
-                base64: true,
+                quality: 1,
               });
 
               if (!result.canceled && result.assets && result.assets.length > 0) {
-                const asset = result.assets[0];
-                const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
-                if (isChatReply) {
-                  setReplyImage({ uri: asset.uri, base64: base64Data });
-                } else {
-                  setSelectedImage({ uri: asset.uri, base64: base64Data });
-                }
+                await usePhoto(result.assets[0]);
               }
             } catch (err: any) {
               Alert.alert('Gallery Error', 'Could not open gallery: ' + (err?.message || 'Try again'));
