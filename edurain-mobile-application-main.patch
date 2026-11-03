@@ -1,0 +1,368 @@
+diff --git a/api/doubts.ts b/api/doubts.ts
+index 29d46c0..4ea88f2 100644
+--- a/api/doubts.ts
++++ b/api/doubts.ts
+@@ -134,13 +134,40 @@ export async function submitDoubtTicket(data: {
+         attachments: data.attachments || (data.diagramUrl ? [data.diagramUrl] : []),
+       }),
+     });
+-    return { success: true, ticket: res?.ticket || res };
++    // The server answers { success, data: ticket }. Reading res.ticket gave the app a made-up ticket
++    // ("TKT-QUEUE", a local id) whose chat was never found on the server, so replies never showed.
++    return { success: true, ticket: res?.data || res?.ticket || res };
+   } catch (err: any) {
+     return { success: false, error: err?.message || 'Failed to submit doubt' };
+   }
+ }
+ 
++/**
++ * Chat polling: the ticket's status and only the messages after the first `after` (saved messages never move).
++ * An older backend ignores `after` and sends them all; the caller merges by id either way.
++ */
++export async function fetchTicketUpdates(
++  ticketId: string,
++  after: number
++): Promise<{ status: string; assignedMentor?: string; messageCount: number; messages: ChatMessage[] } | null> {
++  try {
++    const res = await apiFetch<any>(`/api/tickets/${encodeURIComponent(ticketId)}?after=${after}`);
++    const t = res?.data;
++    if (!t || !Array.isArray(t.messages)) return null;
++    return {
++      status: t.status || 'queue',
++      assignedMentor: t.assignedTo?.name,
++      messageCount: Number(t.messageCount ?? t.messages.length),
++      messages: t.messages,
++    };
++  } catch {
++    return null;
++  }
++}
++
+ export async function sendTicketReply(params: {
++  /** Client message id: the server ignores a repeat, so a retried send never shows twice */
++  id: string;
+   ticketId: string;
+   text: string;
+   senderName: string;
+@@ -151,6 +178,7 @@ export async function sendTicketReply(params: {
+     await apiFetch(`/api/tickets/${params.ticketId}/reply`, {
+       method: 'POST',
+       body: JSON.stringify({
++        id: params.id,
+         text: params.text,
+         senderName: params.senderName,
+         sender: 'student',
+diff --git a/api/mentorship.ts b/api/mentorship.ts
+index 46936d6..a927ff1 100644
+--- a/api/mentorship.ts
++++ b/api/mentorship.ts
+@@ -34,7 +34,15 @@ export interface MentorBooking {
+   startsAt: string;
+   durationMinutes: number;
+   courseTitle?: string | null;
++  /** Only sent once the join window is open (a few minutes before the start, until the end) */
+   meetLink?: string | null;
++  /** The mentor has added the Google Meet link (it may still be hidden until the join window opens) */
++  linkReady?: boolean;
++  joinOpen?: boolean;
++  joinOpensAt?: string;
++  endsAt?: string;
++  /** Milliseconds until joinOpen flips or the session ends, counted by the server (phone clocks drift) */
++  msUntilChange?: number;
+ }
+ 
+ export interface MentorListResponse {
+diff --git a/app/doubt.tsx b/app/doubt.tsx
+index 75b1899..284011c 100644
+--- a/app/doubt.tsx
++++ b/app/doubt.tsx
+@@ -16,6 +16,7 @@ import {
+   Animated,
+   Easing,
+   RefreshControl,
++  AppState,
+ } from 'react-native';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
+ import * as Haptics from 'expo-haptics';
+@@ -32,6 +33,7 @@ import { DoubtTicketCardSkeleton } from '../components/Shared/Skeleton';
+ import {
+   fetchStudentDoubtTickets,
+   fetchSingleDoubtTicket,
++  fetchTicketUpdates,
+   submitDoubtTicket,
+   sendTicketReply,
+   sendResolutionAction,
+@@ -74,7 +76,8 @@ async function saveStoredLocalTickets(tickets: DoubtTicket[]) {
+ function mergeTicketLists(server: DoubtTicket[], local: DoubtTicket[]): DoubtTicket[] {
+   const map = new Map<string, DoubtTicket>();
+   for (const t of local) {
+-    if (!t) continue;
++    // Made-up copies older app versions saved when the server's reply was misread; the real ticket comes from the server
++    if (!t || t.ticketNumber === 'TKT-QUEUE') continue;
+     if (t.id) map.set(t.id, t);
+     if (t.ticketNumber) map.set(t.ticketNumber, t);
+   }
+@@ -230,6 +233,8 @@ export default function AskYourDoubtScreen() {
+ 
+   // 2. Real-Time Socket.io Connection & Redis Synchronization
+   useEffect(() => {
++    // API Gateway + Lambda has no WebSocket server: connecting there only retries forever. Polling below keeps the chat live.
++    if (/amazonaws\.com/.test(SOCKET_URL)) return;
+     let socket: any = null;
+     try {
+       socket = (io as any)(SOCKET_URL, {
+@@ -396,42 +401,66 @@ export default function AskYourDoubtScreen() {
+     }
+   }, [selectedTicket?.id]);
+ 
+-  // 3. Resilient High-Frequency Chat Polling while Chat is Active (1.5s interval for iOS & Android)
++  // 3. Live chat by polling while a chat is open and the app is in the foreground (works on Lambda, where there
++  // is no socket server). One full read first (the list carries no photos), then every 3 s only the new messages.
+   useEffect(() => {
+-    if (!selectedTicket?.id) return;
+-    const pollId = setInterval(async () => {
++    const ticketId = selectedTicket?.id;
++    if (!ticketId) return;
++    let cancelled = false;
++    let busy = false;
++    let serverCount = -1; // messages the server had at the last read; -1 = full read not done yet
++
++    const apply = (status: string, assignedMentor: string | undefined, incoming: ChatMessage[], full: boolean) => {
++      setSelectedTicket((prev) => {
++        if (!prev || prev.id !== ticketId) return prev;
++        const current = prev.messages || [];
++        let messages: ChatMessage[];
++        if (full) {
++          // The server's list is the truth (with the photos the list view leaves out). Keep only messages sent
++          // from this phone that the server hasn't saved yet.
++          const saved = new Set(incoming.map((m) => m.id));
++          messages = [...incoming, ...current.filter((m) => m.id?.startsWith('m-st-') && !saved.has(m.id))];
++        } else {
++          const known = new Set(current.map((m) => m.id));
++          const added = incoming.filter((m) => !known.has(m.id));
++          if (!added.length && status === prev.status) return prev;
++          messages = [...current, ...added];
++        }
++        if (messages.length > current.length) setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
++        return { ...prev, status, assignedMentor: assignedMentor || prev.assignedMentor, messages };
++      });
++    };
++
++    const tick = async () => {
++      if (cancelled || busy || AppState.currentState !== 'active') return;
++      busy = true;
+       try {
+-        const remote = await fetchSingleDoubtTicket(selectedTicket.id);
+-        if (!remote) return;
+-        setSelectedTicket((prev) => {
+-          if (!prev || (prev.id !== remote.id && prev.ticketNumber !== remote.ticketNumber)) return prev;
+-          const remoteMsgs = remote.messages || [];
+-          const localMsgs = prev.messages || [];
+-          const merged = [...remoteMsgs];
+-          for (const lm of localMsgs) {
+-            if (!merged.some((m) => m.id === lm.id || (m.text === lm.text && m.sender === lm.sender))) {
+-              merged.push(lm);
+-            }
++        if (serverCount < 0) {
++          const full = await fetchSingleDoubtTicket(ticketId);
++          if (full && !cancelled) {
++            serverCount = full.messages?.length ?? 0;
++            apply(full.status, full.assignedMentor, full.messages || [], true);
+           }
+-          const hasNewMsg = merged.length !== localMsgs.length;
+-          const hasStatusChange = remote.status !== prev.status;
+-          if (hasNewMsg || hasStatusChange) {
+-            if (hasNewMsg) {
+-              setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+-            }
+-            return {
+-              ...prev,
+-              status: remote.status,
+-              assignedMentor: remote.assignedMentor || prev.assignedMentor,
+-              messages: merged,
+-            };
++        } else {
++          const update = await fetchTicketUpdates(ticketId, serverCount);
++          if (update && !cancelled) {
++            serverCount = update.messageCount;
++            apply(update.status, update.assignedMentor, update.messages, false);
+           }
+-          return prev;
+-        });
+-      } catch {}
+-    }, 1500);
++        }
++      } finally {
++        busy = false;
++      }
++    };
+ 
+-    return () => clearInterval(pollId);
++    tick();
++    const pollId = setInterval(tick, 3000);
++    const sub = AppState.addEventListener('change', (state) => state === 'active' && tick());
++    return () => {
++      cancelled = true;
++      clearInterval(pollId);
++      sub.remove();
++    };
+   }, [selectedTicket?.id]);
+ 
+   // 4. Reliable Camera & Gallery Image Picker (iPhone & Android Tested)
+@@ -637,45 +666,42 @@ export default function AskYourDoubtScreen() {
+ 
+     setSendingReply(true);
+     const attachments = replyImage?.base64 ? [replyImage.base64] : [];
+-
+-    // Real-time Socket.io instant broadcast
+-    if (socketRef.current) {
+-      socketRef.current.emit('send_message', {
+-        ticketId: selectedTicket.id,
+-        message: trimmed,
+-        senderName: user?.name || 'Student',
+-        role: 'student',
+-        attachments,
+-      });
+-    }
++    // One id for this message everywhere: the server keeps it, so polling replaces this copy instead of adding a second
++    const newMsg: ChatMessage = {
++      id: `m-st-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
++      sender: 'student',
++      senderName: user?.name || 'Student',
++      text: trimmed,
++      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
++      attachmentUrl: attachments[0],
++      attachmentUrls: attachments,
++    };
++    const ticketId = selectedTicket.id;
++    const image = replyImage;
++    setSelectedTicket((curr) => (curr ? { ...curr, messages: [...(curr.messages || []), newMsg] } : null));
++    setReplyText('');
++    setReplyImage(null);
++    setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+ 
+     try {
++      // Saved over HTTP only: the server also pushes it to any socket clients (no second copy from this phone)
+       const res = await sendTicketReply({
+-        ticketId: selectedTicket.id,
++        id: newMsg.id,
++        ticketId,
+         text: trimmed,
+-        senderName: user?.name || 'Student',
++        senderName: newMsg.senderName,
+         attachmentUrl: attachments[0],
+         attachments,
+       });
+ 
+-      if (res.success) {
+-        // Optimistic append
+-        const newMsg: ChatMessage = {
+-          id: `opt-${Date.now()}`,
+-          sender: 'student',
+-          senderName: user?.name || 'Student',
+-          text: trimmed,
+-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+-          attachmentUrl: attachments[0],
+-          attachmentUrls: attachments,
+-        };
+-
+-        setSelectedTicket((curr) => (curr ? { ...curr, messages: [...(curr.messages || []), newMsg] } : null));
+-        setReplyText('');
+-        setReplyImage(null);
+-        setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+-      } else {
+-        Alert.alert('Could Not Send', res.error || 'Please wait for reply from educator.');
++      if (!res.success) {
++        // Not saved: take it back out and give the text back, so nothing is lost
++        setSelectedTicket((curr) =>
++          curr && curr.id === ticketId ? { ...curr, messages: (curr.messages || []).filter((m) => m.id !== newMsg.id) } : curr
++        );
++        setReplyText(trimmed);
++        setReplyImage(image);
++        Alert.alert('Could Not Send', res.error || 'Please check your internet and try again.');
+       }
+     } finally {
+       setSendingReply(false);
+@@ -687,13 +713,6 @@ export default function AskYourDoubtScreen() {
+     if (!selectedTicket) return;
+     setResolvingAction(true);
+ 
+-    if (socketRef.current) {
+-      socketRef.current.emit('ticket_action', {
+-        ticketId: selectedTicket.id,
+-        action,
+-      });
+-    }
+-
+     const nextStatus = action === 'solved' ? 'resolved' : 'in_progress';
+     setSelectedTicket((curr) => (curr ? { ...curr, status: nextStatus } : null));
+ 
+diff --git a/app/mentorship.tsx b/app/mentorship.tsx
+index 214a717..23f8dde 100644
+--- a/app/mentorship.tsx
++++ b/app/mentorship.tsx
+@@ -11,6 +11,7 @@ import {
+   Modal,
+   Alert,
+   Linking,
++  AppState,
+ } from 'react-native';
+ import { router } from 'expo-router';
+ import { useSafeAreaInsets } from 'react-native-safe-area-context';
+@@ -79,18 +80,32 @@ export default function MentorshipScreen() {
+     }
+   }, [goal?.id, searchQuery]);
+ 
+-  const loadBookings = useCallback(async () => {
+-    setBookingsLoading(true);
++  const loadBookings = useCallback(async (silent: boolean = false) => {
++    if (!silent) setBookingsLoading(true);
+     try {
+       const data = await fetchMyBookings();
+       setMyBookings(data);
+     } catch {
+-      setMyBookings([]);
++      if (!silent) setMyBookings([]);
+     } finally {
+-      setBookingsLoading(false);
++      if (!silent) setBookingsLoading(false);
+     }
+   }, []);
+ 
++  // Sessions change by themselves: the mentor can send the Meet link any time, the Join button opens a few
++  // minutes before the start, and a session leaves the list when it ends. While the list is on screen, refresh
++  // right after the next change the server announced, and at least once a minute; and when the app comes back.
++  useEffect(() => {
++    if (activeTab !== 'my_sessions') return;
++    const next = Math.min(60_000, ...myBookings.map((b) => (b.msUntilChange ?? 60_000) + 1_000));
++    const timer = setTimeout(() => loadBookings(true), Math.max(5_000, next));
++    const sub = AppState.addEventListener('change', (state) => state === 'active' && loadBookings(true));
++    return () => {
++      clearTimeout(timer);
++      sub.remove();
++    };
++  }, [activeTab, myBookings, loadBookings]);
++
+   useEffect(() => {
+     loadMentors();
+     loadBookings();
+@@ -328,7 +343,7 @@ export default function MentorshipScreen() {
+                       </Text>
+                     </View>
+ 
+-                    {b.meetLink ? (
++                    {b.joinOpen && b.meetLink ? (
+                       <TouchableOpacity
+                         style={styles.joinMeetBtn}
+                         onPress={() =>
+@@ -345,7 +360,9 @@ export default function MentorshipScreen() {
+                       <View style={styles.meetPendingPill}>
+                         <Feather name="info" size={13} color="#0369A1" />
+                         <Text style={styles.meetPendingText}>
+-                          Google Meet link will appear here before your session starts.
++                          {b.linkReady && b.joinOpensAt
++                            ? `Your Google Meet link is ready. The Join button opens at ${new Date(b.joinOpensAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}.`
++                            : 'Your session link will be coming soon. Your mentor will share the Google Meet link here.'}
+                         </Text>
+                       </View>
+                     )}
