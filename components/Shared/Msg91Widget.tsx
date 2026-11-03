@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { Theme } from '../../constants/theme';
 
 interface Msg91WidgetProps {
@@ -11,18 +11,121 @@ interface Msg91WidgetProps {
   onClose?: () => void;
 }
 
+// MSG91 OTP widget REST API (the same calls MSG91's own React Native SDK makes)
+const MSG91_API = 'https://control.msg91.com/api/v5/widget';
+const RESEND_SECONDS = 30;
+const SMS_CHANNEL = 11;
+
+async function callMsg91(path: string, body: Record<string, unknown>): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(`${MSG91_API}/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const data: { type?: string; message?: string } = await res.json().catch(() => ({}));
+    if (data.type !== 'success' || !data.message) {
+      throw new Error(data.message || 'Could not reach the OTP service. Please try again.');
+    }
+    return data.message;
+  } catch (err: any) {
+    throw new Error(err?.name === 'AbortError' ? 'The OTP service is taking too long. Please try again.' : err?.message);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Sends an SMS OTP to `phone`, verifies it, and hands MSG91's access token to `onCompletion`. */
 export function Msg91Widget(props: Msg91WidgetProps) {
+  const widgetId = props.widgetId || process.env.EXPO_PUBLIC_MSG91_WIDGET_ID || '';
+  const tokenAuth = props.tokenAuth || process.env.EXPO_PUBLIC_MSG91_TOKEN_AUTH || '';
+  const digits = (props.phone || '').replace(/\D/g, '').slice(-10);
+
+  const [reqId, setReqId] = useState('');
+  const [otp, setOtp] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const session = useRef(0);
+
+  // A fresh OTP every time the popup opens; replies from an older session are ignored
+  useEffect(() => {
+    if (!props.visible) return;
+    const mine = ++session.current;
+    setReqId('');
+    setOtp('');
+    setError('');
+    if (!widgetId || !tokenAuth) {
+      setError('OTP service is not configured in this build.');
+      return;
+    }
+    if (digits.length !== 10) {
+      setError('Enter a valid 10-digit mobile number first.');
+      return;
+    }
+    setBusy(true);
+    callMsg91('sendOtpMobile', { widgetId, tokenAuth, identifier: `91${digits}` })
+      .then((id) => {
+        if (session.current !== mine) return;
+        setReqId(id);
+        setSecondsLeft(RESEND_SECONDS);
+      })
+      .catch((err) => session.current === mine && setError(err.message))
+      .finally(() => session.current === mine && setBusy(false));
+  }, [props.visible, digits, widgetId, tokenAuth]);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [secondsLeft]);
+
   if (!props.visible) return null;
 
-  const handleSimulateSuccess = () => {
-    props.onCompletion?.({
-      success: true,
-      message: 'otp_verified_token',
-    });
+  const handleVerify = async () => {
+    if (!reqId || otp.length < 4 || busy) return;
+    const mine = session.current;
+    setBusy(true);
+    setError('');
+    try {
+      const accessToken = await callMsg91('verifyOtp', { widgetId, tokenAuth, reqId, otp });
+      if (session.current === mine) props.onCompletion?.({ success: true, message: accessToken });
+    } catch (err: any) {
+      if (session.current === mine) setError(err.message || 'Wrong OTP. Please try again.');
+    } finally {
+      if (session.current === mine) setBusy(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!reqId || secondsLeft > 0 || busy) return;
+    const mine = session.current;
+    setBusy(true);
+    setError('');
+    try {
+      await callMsg91('retryOtp', { widgetId, tokenAuth, reqId, retryChannel: SMS_CHANNEL });
+      if (session.current === mine) {
+        setOtp('');
+        setSecondsLeft(RESEND_SECONDS);
+      }
+    } catch (err: any) {
+      if (session.current === mine) setError(err.message);
+    } finally {
+      if (session.current === mine) setBusy(false);
+    }
+  };
+
+  const handleClose = () => {
+    session.current++;
+    setBusy(false);
+    props.onClose?.();
   };
 
   return (
-    <Modal visible={props.visible} transparent animationType="fade">
+    <Modal visible={props.visible} transparent animationType="fade" onRequestClose={handleClose}>
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.headerBadge}>
@@ -30,18 +133,43 @@ export function Msg91Widget(props: Msg91WidgetProps) {
           </View>
           <Text style={styles.title}>Verify Phone Number</Text>
           <Text style={styles.desc}>
-            {props.phone ? `Verifying +91 ${props.phone}` : 'Enter the OTP sent to your registered mobile number.'}
+            {reqId ? `Enter the OTP sent to +91 ${digits}` : busy ? `Sending OTP to +91 ${digits}…` : `Verifying +91 ${digits}`}
           </Text>
 
+          <TextInput
+            style={styles.otpInput}
+            value={otp}
+            onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="sms-otp"
+            maxLength={6}
+            placeholder="Enter OTP"
+            placeholderTextColor={Theme.colors.text.muted}
+            editable={!!reqId && !busy}
+            onSubmitEditing={handleVerify}
+          />
+
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+
           <TouchableOpacity
-            style={styles.simulateButton}
-            onPress={handleSimulateSuccess}
+            style={[styles.verifyButton, (!reqId || otp.length < 4 || busy) && styles.buttonDisabled]}
+            onPress={handleVerify}
+            disabled={!reqId || otp.length < 4 || busy}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Verify OTP & Continue</Text>
+            {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Verify OTP & Continue</Text>}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.cancelBtn} onPress={props.onClose} activeOpacity={0.7}>
+          {!!reqId && (
+            <TouchableOpacity style={styles.resendBtn} onPress={handleResend} disabled={secondsLeft > 0 || busy} activeOpacity={0.7}>
+              <Text style={[styles.resendText, (secondsLeft > 0 || busy) && styles.resendTextMuted]}>
+                {secondsLeft > 0 ? `Resend OTP in ${secondsLeft}s` : 'Resend OTP'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -98,13 +226,48 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 20,
   },
-  simulateButton: {
+  otpInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: Theme.colors.accent.border,
+    borderRadius: 14,
+    paddingVertical: 14,
+    fontSize: 22,
+    letterSpacing: 8,
+    textAlign: 'center',
+    fontFamily: Theme.fonts.semiBold,
+    color: Theme.colors.ink.deep,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: Theme.colors.accent.error,
+    fontFamily: Theme.fonts.medium,
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  verifyButton: {
     backgroundColor: Theme.colors.ink.primary,
     paddingVertical: 14,
     borderRadius: 14,
     width: '100%',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  resendBtn: {
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  resendText: {
+    color: Theme.colors.ink.primary,
+    fontFamily: Theme.fonts.semiBold,
+    fontSize: 14,
+  },
+  resendTextMuted: {
+    color: Theme.colors.text.muted,
   },
   buttonText: {
     color: '#FFFFFF',

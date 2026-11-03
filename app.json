@@ -25,11 +25,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.edurainindia.app",
-      "splash": {
-        "image": "./assets/images/logo.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#FFFFFF"
-      },
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow EDURAIN to access your photo library to set your profile picture and upload study doubt images.",
         "NSCameraUsageDescription": "Allow EDURAIN to access your camera to take a profile picture and capture doubt problems.",
