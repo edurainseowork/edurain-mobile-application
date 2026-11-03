@@ -25,6 +25,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { io } from 'socket.io-client';
+import { onValue, ref } from 'firebase/database';
+import { rtdb } from '../firebaseConfig';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
 import { LockedFeatureGuard } from '../components/LockedFeatureGuard';
@@ -401,14 +403,20 @@ export default function AskYourDoubtScreen() {
     }
   }, [selectedTicket?.id]);
 
-  // 3. Live chat by polling while a chat is open and the app is in the foreground (works on Lambda, where there
-  // is no socket server). One full read first (the list carries no photos), then every 3 s only the new messages.
+  // 3. Live chat while a chat is open and the app is in the foreground. The backend pings ticketSignals/<id> in
+  // Firebase Realtime Database the moment the ticket is saved (a teacher's reply): read the new messages then.
+  // Polling stays as the safety net: every 30 s while that signal works, every 3 s when it doesn't (not set up,
+  // or offline). One full read first (the list carries no photos), after that only the new messages.
   useEffect(() => {
     const ticketId = selectedTicket?.id;
     if (!ticketId) return;
     let cancelled = false;
     let busy = false;
+    let again = false; // a signal came while reading: read once more after
+    let live = false;
+    let lastRead = 0;
     let serverCount = -1; // messages the server had at the last read; -1 = full read not done yet
+    let known = ''; // "count:status" at the last read
 
     const apply = (status: string, assignedMentor: string | undefined, incoming: ChatMessage[], full: boolean) => {
       setSelectedTicket((prev) => {
@@ -431,35 +439,61 @@ export default function AskYourDoubtScreen() {
       });
     };
 
-    const tick = async () => {
-      if (cancelled || busy || AppState.currentState !== 'active') return;
+    const tick = async (now: boolean = false) => {
+      if (cancelled || AppState.currentState !== 'active') return;
+      if (busy) {
+        again ||= now;
+        return;
+      }
+      if (!now && live && Date.now() - lastRead < 30_000) return;
       busy = true;
+      lastRead = Date.now();
       try {
         if (serverCount < 0) {
           const full = await fetchSingleDoubtTicket(ticketId);
           if (full && !cancelled) {
             serverCount = full.messages?.length ?? 0;
+            known = `${serverCount}:${full.status}`;
             apply(full.status, full.assignedMentor, full.messages || [], true);
           }
         } else {
           const update = await fetchTicketUpdates(ticketId, serverCount);
           if (update && !cancelled) {
             serverCount = update.messageCount;
+            known = `${serverCount}:${update.status}`;
             apply(update.status, update.assignedMentor, update.messages, false);
           }
         }
       } finally {
         busy = false;
+        if (again) {
+          again = false;
+          tick(true);
+        }
       }
     };
 
     tick();
-    const pollId = setInterval(tick, 3000);
-    const sub = AppState.addEventListener('change', (state) => state === 'active' && tick());
+    const pollId = setInterval(() => tick(), 3000);
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && tick(true));
+    const unsubscribe = rtdb
+      ? onValue(
+          ref(rtdb, `ticketSignals/${ticketId}`),
+          (snap) => {
+            live = true;
+            const signal = snap.val() as { n?: number; s?: string } | null;
+            if (signal && `${signal.n}:${signal.s}` !== known) tick(true);
+          },
+          () => {
+            live = false; // e.g. rules not published yet: keep polling every 3 s
+          }
+        )
+      : () => {};
     return () => {
       cancelled = true;
       clearInterval(pollId);
       sub.remove();
+      unsubscribe();
     };
   }, [selectedTicket?.id]);
 
