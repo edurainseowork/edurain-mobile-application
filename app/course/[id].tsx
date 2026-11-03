@@ -370,27 +370,8 @@ export default function CourseDetailScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Theme.colors.ink.primary} />
-        <Text style={styles.loadingText}>Loading course curriculum...</Text>
-      </View>
-    );
-  }
-
-  if (!course) {
-    return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.errorText}>Course not found.</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  // Dynamic Course Includes features (Matching Screenshot 2 & CMS metrics)
+  // Dynamic Course Includes features (Matching Screenshot 2 & CMS metrics).
+  // Above the early returns below: hooks must run on every render, in the same order
   const courseIncludesItems = useMemo(() => {
     if (!course) return [];
     const items: { icon: any; text: string }[] = [];
@@ -435,6 +416,26 @@ export default function CourseDetailScreen() {
 
     return items;
   }, [course, selectedPlan]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Theme.colors.ink.primary} />
+        <Text style={styles.loadingText}>Loading course curriculum...</Text>
+      </View>
+    );
+  }
+
+  if (!course) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>Course not found.</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.rootContainer, { paddingTop: insets.top }]}>
