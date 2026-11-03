@@ -134,13 +134,40 @@ export async function submitDoubtTicket(data: {
         attachments: data.attachments || (data.diagramUrl ? [data.diagramUrl] : []),
       }),
     });
-    return { success: true, ticket: res?.ticket || res };
+    // The server answers { success, data: ticket }. Reading res.ticket gave the app a made-up ticket
+    // ("TKT-QUEUE", a local id) whose chat was never found on the server, so replies never showed.
+    return { success: true, ticket: res?.data || res?.ticket || res };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to submit doubt' };
   }
 }
 
+/**
+ * Chat polling: the ticket's status and only the messages after the first `after` (saved messages never move).
+ * An older backend ignores `after` and sends them all; the caller merges by id either way.
+ */
+export async function fetchTicketUpdates(
+  ticketId: string,
+  after: number
+): Promise<{ status: string; assignedMentor?: string; messageCount: number; messages: ChatMessage[] } | null> {
+  try {
+    const res = await apiFetch<any>(`/api/tickets/${encodeURIComponent(ticketId)}?after=${after}`);
+    const t = res?.data;
+    if (!t || !Array.isArray(t.messages)) return null;
+    return {
+      status: t.status || 'queue',
+      assignedMentor: t.assignedTo?.name,
+      messageCount: Number(t.messageCount ?? t.messages.length),
+      messages: t.messages,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function sendTicketReply(params: {
+  /** Client message id: the server ignores a repeat, so a retried send never shows twice */
+  id: string;
   ticketId: string;
   text: string;
   senderName: string;
@@ -151,6 +178,7 @@ export async function sendTicketReply(params: {
     await apiFetch(`/api/tickets/${params.ticketId}/reply`, {
       method: 'POST',
       body: JSON.stringify({
+        id: params.id,
         text: params.text,
         senderName: params.senderName,
         sender: 'student',

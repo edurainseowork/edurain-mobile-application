@@ -34,7 +34,15 @@ export interface MentorBooking {
   startsAt: string;
   durationMinutes: number;
   courseTitle?: string | null;
+  /** Only sent once the join window is open (a few minutes before the start, until the end) */
   meetLink?: string | null;
+  /** The mentor has added the Google Meet link (it may still be hidden until the join window opens) */
+  linkReady?: boolean;
+  joinOpen?: boolean;
+  joinOpensAt?: string;
+  endsAt?: string;
+  /** Milliseconds until joinOpen flips or the session ends, counted by the server (phone clocks drift) */
+  msUntilChange?: number;
 }
 
 export interface MentorListResponse {

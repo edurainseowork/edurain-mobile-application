@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
   Linking,
+  AppState,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -79,17 +80,31 @@ export default function MentorshipScreen() {
     }
   }, [goal?.id, searchQuery]);
 
-  const loadBookings = useCallback(async () => {
-    setBookingsLoading(true);
+  const loadBookings = useCallback(async (silent: boolean = false) => {
+    if (!silent) setBookingsLoading(true);
     try {
       const data = await fetchMyBookings();
       setMyBookings(data);
     } catch {
-      setMyBookings([]);
+      if (!silent) setMyBookings([]);
     } finally {
-      setBookingsLoading(false);
+      if (!silent) setBookingsLoading(false);
     }
   }, []);
+
+  // Sessions change by themselves: the mentor can send the Meet link any time, the Join button opens a few
+  // minutes before the start, and a session leaves the list when it ends. While the list is on screen, refresh
+  // right after the next change the server announced, and at least once a minute; and when the app comes back.
+  useEffect(() => {
+    if (activeTab !== 'my_sessions') return;
+    const next = Math.min(60_000, ...myBookings.map((b) => (b.msUntilChange ?? 60_000) + 1_000));
+    const timer = setTimeout(() => loadBookings(true), Math.max(5_000, next));
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && loadBookings(true));
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
+  }, [activeTab, myBookings, loadBookings]);
 
   useEffect(() => {
     loadMentors();
@@ -328,7 +343,7 @@ export default function MentorshipScreen() {
                       </Text>
                     </View>
 
-                    {b.meetLink ? (
+                    {b.joinOpen && b.meetLink ? (
                       <TouchableOpacity
                         style={styles.joinMeetBtn}
                         onPress={() =>
@@ -345,7 +360,9 @@ export default function MentorshipScreen() {
                       <View style={styles.meetPendingPill}>
                         <Feather name="info" size={13} color="#0369A1" />
                         <Text style={styles.meetPendingText}>
-                          Google Meet link will appear here before your session starts.
+                          {b.linkReady && b.joinOpensAt
+                            ? `Your Google Meet link is ready. The Join button opens at ${new Date(b.joinOpensAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}.`
+                            : 'Your session link will be coming soon. Your mentor will share the Google Meet link here.'}
                         </Text>
                       </View>
                     )}

@@ -16,6 +16,7 @@ import {
   Animated,
   Easing,
   RefreshControl,
+  AppState,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
@@ -32,6 +33,7 @@ import { DoubtTicketCardSkeleton } from '../components/Shared/Skeleton';
 import {
   fetchStudentDoubtTickets,
   fetchSingleDoubtTicket,
+  fetchTicketUpdates,
   submitDoubtTicket,
   sendTicketReply,
   sendResolutionAction,
@@ -74,7 +76,8 @@ async function saveStoredLocalTickets(tickets: DoubtTicket[]) {
 function mergeTicketLists(server: DoubtTicket[], local: DoubtTicket[]): DoubtTicket[] {
   const map = new Map<string, DoubtTicket>();
   for (const t of local) {
-    if (!t) continue;
+    // Made-up copies older app versions saved when the server's reply was misread; the real ticket comes from the server
+    if (!t || t.ticketNumber === 'TKT-QUEUE') continue;
     if (t.id) map.set(t.id, t);
     if (t.ticketNumber) map.set(t.ticketNumber, t);
   }
@@ -230,6 +233,8 @@ export default function AskYourDoubtScreen() {
 
   // 2. Real-Time Socket.io Connection & Redis Synchronization
   useEffect(() => {
+    // API Gateway + Lambda has no WebSocket server: connecting there only retries forever. Polling below keeps the chat live.
+    if (/amazonaws\.com/.test(SOCKET_URL)) return;
     let socket: any = null;
     try {
       socket = (io as any)(SOCKET_URL, {
@@ -396,42 +401,66 @@ export default function AskYourDoubtScreen() {
     }
   }, [selectedTicket?.id]);
 
-  // 3. Resilient High-Frequency Chat Polling while Chat is Active (1.5s interval for iOS & Android)
+  // 3. Live chat by polling while a chat is open and the app is in the foreground (works on Lambda, where there
+  // is no socket server). One full read first (the list carries no photos), then every 3 s only the new messages.
   useEffect(() => {
-    if (!selectedTicket?.id) return;
-    const pollId = setInterval(async () => {
-      try {
-        const remote = await fetchSingleDoubtTicket(selectedTicket.id);
-        if (!remote) return;
-        setSelectedTicket((prev) => {
-          if (!prev || (prev.id !== remote.id && prev.ticketNumber !== remote.ticketNumber)) return prev;
-          const remoteMsgs = remote.messages || [];
-          const localMsgs = prev.messages || [];
-          const merged = [...remoteMsgs];
-          for (const lm of localMsgs) {
-            if (!merged.some((m) => m.id === lm.id || (m.text === lm.text && m.sender === lm.sender))) {
-              merged.push(lm);
-            }
-          }
-          const hasNewMsg = merged.length !== localMsgs.length;
-          const hasStatusChange = remote.status !== prev.status;
-          if (hasNewMsg || hasStatusChange) {
-            if (hasNewMsg) {
-              setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
-            }
-            return {
-              ...prev,
-              status: remote.status,
-              assignedMentor: remote.assignedMentor || prev.assignedMentor,
-              messages: merged,
-            };
-          }
-          return prev;
-        });
-      } catch {}
-    }, 1500);
+    const ticketId = selectedTicket?.id;
+    if (!ticketId) return;
+    let cancelled = false;
+    let busy = false;
+    let serverCount = -1; // messages the server had at the last read; -1 = full read not done yet
 
-    return () => clearInterval(pollId);
+    const apply = (status: string, assignedMentor: string | undefined, incoming: ChatMessage[], full: boolean) => {
+      setSelectedTicket((prev) => {
+        if (!prev || prev.id !== ticketId) return prev;
+        const current = prev.messages || [];
+        let messages: ChatMessage[];
+        if (full) {
+          // The server's list is the truth (with the photos the list view leaves out). Keep only messages sent
+          // from this phone that the server hasn't saved yet.
+          const saved = new Set(incoming.map((m) => m.id));
+          messages = [...incoming, ...current.filter((m) => m.id?.startsWith('m-st-') && !saved.has(m.id))];
+        } else {
+          const known = new Set(current.map((m) => m.id));
+          const added = incoming.filter((m) => !known.has(m.id));
+          if (!added.length && status === prev.status) return prev;
+          messages = [...current, ...added];
+        }
+        if (messages.length > current.length) setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
+        return { ...prev, status, assignedMentor: assignedMentor || prev.assignedMentor, messages };
+      });
+    };
+
+    const tick = async () => {
+      if (cancelled || busy || AppState.currentState !== 'active') return;
+      busy = true;
+      try {
+        if (serverCount < 0) {
+          const full = await fetchSingleDoubtTicket(ticketId);
+          if (full && !cancelled) {
+            serverCount = full.messages?.length ?? 0;
+            apply(full.status, full.assignedMentor, full.messages || [], true);
+          }
+        } else {
+          const update = await fetchTicketUpdates(ticketId, serverCount);
+          if (update && !cancelled) {
+            serverCount = update.messageCount;
+            apply(update.status, update.assignedMentor, update.messages, false);
+          }
+        }
+      } finally {
+        busy = false;
+      }
+    };
+
+    tick();
+    const pollId = setInterval(tick, 3000);
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && tick());
+    return () => {
+      cancelled = true;
+      clearInterval(pollId);
+      sub.remove();
+    };
   }, [selectedTicket?.id]);
 
   // 4. Reliable Camera & Gallery Image Picker (iPhone & Android Tested)
@@ -637,45 +666,42 @@ export default function AskYourDoubtScreen() {
 
     setSendingReply(true);
     const attachments = replyImage?.base64 ? [replyImage.base64] : [];
-
-    // Real-time Socket.io instant broadcast
-    if (socketRef.current) {
-      socketRef.current.emit('send_message', {
-        ticketId: selectedTicket.id,
-        message: trimmed,
-        senderName: user?.name || 'Student',
-        role: 'student',
-        attachments,
-      });
-    }
+    // One id for this message everywhere: the server keeps it, so polling replaces this copy instead of adding a second
+    const newMsg: ChatMessage = {
+      id: `m-st-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      sender: 'student',
+      senderName: user?.name || 'Student',
+      text: trimmed,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      attachmentUrl: attachments[0],
+      attachmentUrls: attachments,
+    };
+    const ticketId = selectedTicket.id;
+    const image = replyImage;
+    setSelectedTicket((curr) => (curr ? { ...curr, messages: [...(curr.messages || []), newMsg] } : null));
+    setReplyText('');
+    setReplyImage(null);
+    setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
+      // Saved over HTTP only: the server also pushes it to any socket clients (no second copy from this phone)
       const res = await sendTicketReply({
-        ticketId: selectedTicket.id,
+        id: newMsg.id,
+        ticketId,
         text: trimmed,
-        senderName: user?.name || 'Student',
+        senderName: newMsg.senderName,
         attachmentUrl: attachments[0],
         attachments,
       });
 
-      if (res.success) {
-        // Optimistic append
-        const newMsg: ChatMessage = {
-          id: `opt-${Date.now()}`,
-          sender: 'student',
-          senderName: user?.name || 'Student',
-          text: trimmed,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          attachmentUrl: attachments[0],
-          attachmentUrls: attachments,
-        };
-
-        setSelectedTicket((curr) => (curr ? { ...curr, messages: [...(curr.messages || []), newMsg] } : null));
-        setReplyText('');
-        setReplyImage(null);
-        setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
-      } else {
-        Alert.alert('Could Not Send', res.error || 'Please wait for reply from educator.');
+      if (!res.success) {
+        // Not saved: take it back out and give the text back, so nothing is lost
+        setSelectedTicket((curr) =>
+          curr && curr.id === ticketId ? { ...curr, messages: (curr.messages || []).filter((m) => m.id !== newMsg.id) } : curr
+        );
+        setReplyText(trimmed);
+        setReplyImage(image);
+        Alert.alert('Could Not Send', res.error || 'Please check your internet and try again.');
       }
     } finally {
       setSendingReply(false);
@@ -686,13 +712,6 @@ export default function AskYourDoubtScreen() {
   const handleResolution = async (action: 'solved' | 'followup') => {
     if (!selectedTicket) return;
     setResolvingAction(true);
-
-    if (socketRef.current) {
-      socketRef.current.emit('ticket_action', {
-        ticketId: selectedTicket.id,
-        action,
-      });
-    }
 
     const nextStatus = action === 'solved' ? 'resolved' : 'in_progress';
     setSelectedTicket((curr) => (curr ? { ...curr, status: nextStatus } : null));
