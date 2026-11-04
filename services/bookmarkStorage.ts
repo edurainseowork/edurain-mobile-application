@@ -25,24 +25,13 @@ export interface SavedPdf {
   savedAt: number;
 }
 
-export interface LectureHistoryItem {
-  id: string;
-  title: string;
-  subject?: string;
-  standard?: string;
-  duration?: string;
-  mediaUrl: string;
-  watchedAt: number;
-}
-
 const STORAGE_KEYS = {
   SAVED_EBOOKS: 'edurain_saved_ebooks',
   SAVED_PDFS: 'edurain_saved_pdfs',
-  LECTURE_HISTORY: 'edurain_lecture_history',
 };
 
-// Auto-expire history older than 5 days (in ms)
-const MAX_HISTORY_AGE_MS = 5 * 24 * 60 * 60 * 1000;
+// The mobile app no longer keeps a study history; this key held it on older versions
+const OLD_HISTORY_KEY = 'edurain_lecture_history';
 
 /* =======================================================================
  * SAVED E-BOOKS
@@ -140,57 +129,10 @@ export async function isPdfSaved(id: string): Promise<boolean> {
   return list.some((item) => item.id === id);
 }
 
-/* =======================================================================
- * LECTURE WATCH HISTORY (Auto-resets after 5 days)
- * ======================================================================= */
-export async function getLectureHistory(): Promise<LectureHistoryItem[]> {
+/** Deletes the study history older app versions saved on the phone. */
+export async function removeOldStudyHistory(): Promise<void> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.LECTURE_HISTORY);
-    if (!raw) return [];
-    const list: LectureHistoryItem[] = JSON.parse(raw);
-    if (!Array.isArray(list)) return [];
-
-    const now = Date.now();
-    // Keep only entries watched within the last 5 days
-    const active = list.filter((item) => now - item.watchedAt <= MAX_HISTORY_AGE_MS);
-
-    // If some were pruned, save cleaned list back
-    if (active.length !== list.length) {
-      await AsyncStorage.setItem(STORAGE_KEYS.LECTURE_HISTORY, JSON.stringify(active));
-    }
-    return active;
-  } catch {
-    return [];
-  }
-}
-
-export async function recordLectureWatch(lecture: {
-  id: string;
-  title: string;
-  subject?: string;
-  standard?: string;
-  duration?: string;
-  mediaUrl: string;
-}): Promise<void> {
-  try {
-    const list = await getLectureHistory();
-    // Remove if already in history so we can put it on top with latest timestamp
-    const filtered = list.filter((item) => item.id !== lecture.id);
-    const updated: LectureHistoryItem[] = [
-      {
-        ...lecture,
-        watchedAt: Date.now(),
-      },
-      ...filtered,
-    ];
-
-    await AsyncStorage.setItem(STORAGE_KEYS.LECTURE_HISTORY, JSON.stringify(updated.slice(0, 30)));
-  } catch {}
-}
-
-export async function clearLectureHistory(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(STORAGE_KEYS.LECTURE_HISTORY);
+    await AsyncStorage.removeItem(OLD_HISTORY_KEY);
   } catch {}
 }
 

@@ -21,11 +21,9 @@ import { Theme } from '../constants/theme';
 import {
   getSavedEBooks,
   getSavedPdfs,
-  getLectureHistory,
-  clearLectureHistory,
+  removeOldStudyHistory,
   SavedEBook,
   SavedPdf,
-  LectureHistoryItem,
 } from '../services/bookmarkStorage';
 
 export default function BookmarksScreen() {
@@ -34,7 +32,6 @@ export default function BookmarksScreen() {
 
   const [savedEBooks, setSavedEBooks] = useState<SavedEBook[]>([]);
   const [savedPdfs, setSavedPdfs] = useState<SavedPdf[]>([]);
-  const [historyItems, setHistoryItems] = useState<LectureHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // In-App DRM modal state for playback/reading directly from bookmarks
@@ -46,30 +43,10 @@ export default function BookmarksScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [ebooks, pdfs, history] = await Promise.all([
-        getSavedEBooks(),
-        getSavedPdfs(),
-        getLectureHistory(),
-      ]);
+      const [ebooks, pdfs] = await Promise.all([getSavedEBooks(), getSavedPdfs(), removeOldStudyHistory()]);
       setSavedEBooks(ebooks);
       setSavedPdfs(pdfs);
 
-      if (history.length > 0) {
-        setHistoryItems(history);
-      } else {
-        // Fallback initial demo lecture if history is empty
-        setHistoryItems([
-          {
-            id: 'v-demo-1',
-            title: "Electrostatics – Gauss's Law Applications",
-            subject: 'Physics',
-            standard: '12th',
-            duration: '45:10',
-            mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            watchedAt: Date.now(),
-          },
-        ]);
-      }
     } finally {
       setLoading(false);
     }
@@ -87,24 +64,6 @@ export default function BookmarksScreen() {
       ScreenCapture.allowScreenCaptureAsync().catch(() => {});
     }
   }, [activeMedia]);
-
-  const handleClearAllHistory = () => {
-    Alert.alert(
-      'Clear History',
-      'Are you sure you want to clear your study history?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            await clearLectureHistory();
-            setHistoryItems([]);
-          },
-        },
-      ]
-    );
-  };
 
   const getVideoSource = (url: string) => {
     if (url.includes('iframe.mediadelivery.net') || url.includes('/play/') || url.includes('/embed/')) {
@@ -266,81 +225,6 @@ export default function BookmarksScreen() {
           </View>
         )}
 
-        {/* History Section (Recent videos, auto-prunes after 5 days) */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <Feather name="clock" size={18} color="#0B3B42" />
-            <Text style={styles.sectionHeaderTitle}>History</Text>
-          </View>
-          {historyItems.length > 0 && (
-            <TouchableOpacity onPress={handleClearAllHistory} style={styles.clearAllBtn}>
-              <Feather name="rotate-ccw" size={13} color="#64748B" style={{ marginRight: 4 }} />
-              <Text style={styles.clearAllText}>Clear All</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {historyItems.length === 0 ? (
-          <View style={[styles.emptyCard, { paddingVertical: 18, marginBottom: 20 }]}>
-            <Text style={[styles.emptyTitle, { fontSize: 13.5, marginBottom: 2 }]}>
-              No watch history in the last 5 days
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              Material you open in Class Material will appear here automatically.
-            </Text>
-          </View>
-        ) : (
-          historyItems.slice(0, 3).map((item) => (
-            <View key={item.id} style={styles.historyCard}>
-              {/* Video Thumbnail */}
-              <View style={styles.videoThumbnail}>
-                <View style={styles.tagBadge}>
-                  <Text style={styles.tagBadgeText}>
-                    {item.subject || 'Course'} {item.standard ? `• ${item.standard}` : ''}
-                  </Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.playCenter}
-                  onPress={() =>
-                    setActiveMedia({
-                      type: 'video',
-                      title: item.title,
-                      url: item.mediaUrl,
-                    })
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Feather name="play-circle" size={44} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <View style={styles.durationPill}>
-                  <Feather name="clock" size={10} color="#FFFFFF" style={{ marginRight: 4 }} />
-                  <Text style={styles.durationText}>{item.duration || '45:00'}</Text>
-                </View>
-              </View>
-
-              {/* Video Title & Action */}
-              <View style={styles.videoInfo}>
-                <Text style={styles.videoTitle}>{item.title}</Text>
-                <TouchableOpacity
-                  style={styles.watchNowBtn}
-                  activeOpacity={0.85}
-                  onPress={() =>
-                    setActiveMedia({
-                      type: 'video',
-                      title: item.title,
-                      url: item.mediaUrl,
-                    })
-                  }
-                >
-                  <Text style={styles.watchNowBtnText}>Open →</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-
         {/* Wishlist Section */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
@@ -439,7 +323,7 @@ export default function BookmarksScreen() {
                   <View style={styles.drmLoader}>
                     <ActivityIndicator size="large" color="#38BDF8" />
                     <Text style={styles.drmLoaderText}>
-                      Loading secure {activeMedia.type === 'video' ? 'lecture stream' : 'PDF reader'}...
+                      Loading secure {activeMedia.type === 'video' ? 'study material' : 'PDF reader'}...
                     </Text>
                   </View>
                 )}
@@ -678,85 +562,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  clearAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  clearAllText: {
-    fontSize: 12,
-    fontFamily: Theme.fonts.medium,
-    color: '#64748B',
-  },
-  historyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  videoThumbnail: {
-    height: 170,
-    backgroundColor: '#0F172A',
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tagBadge: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  tagBadgeText: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.bold,
-    color: '#D97706',
-  },
-  playCenter: {
-    opacity: 0.9,
-  },
-  durationPill: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  durationText: {
-    fontSize: 11,
-    fontFamily: Theme.fonts.bold,
-    color: '#FFFFFF',
-  },
-  videoInfo: {
-    padding: 16,
-  },
-  videoTitle: {
-    fontSize: 15,
-    fontFamily: Theme.fonts.bold,
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  watchNowBtn: {
-    backgroundColor: '#0B3B42',
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  watchNowBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontFamily: Theme.fonts.bold,
-  },
-
-  /* Wishlist Card */
   wishlistCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,

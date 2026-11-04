@@ -23,7 +23,6 @@ import { fetchCourseContent, ContentItem } from '../api/courses';
 import {
   getSavedPdfs,
   toggleSavePdf,
-  recordLectureWatch,
 } from '../services/bookmarkStorage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -222,14 +221,6 @@ export default function ClassMaterialScreen() {
 
   const handleWatchVideo = (item: ContentItem) => {
     if (item.mediaUrl) {
-      recordLectureWatch({
-        id: item.id,
-        title: item.title,
-        subject: item.subject || currentCourseCategory,
-        standard: currentCourseTitle,
-        duration: item.duration || '45:00',
-        mediaUrl: item.mediaUrl,
-      });
       setActiveMedia({
         type: 'video',
         title: item.title,
@@ -380,12 +371,6 @@ export default function ClassMaterialScreen() {
               onPress={() => setSelectedFilter('video')}
               activeOpacity={0.75}
             >
-              <Feather
-                name="video"
-                size={11}
-                color={selectedFilter === 'video' ? '#FFFFFF' : '#475569'}
-                style={{ marginRight: 4 }}
-              />
               <Text
                 style={[
                   styles.filterPillText,
@@ -760,7 +745,7 @@ export default function ClassMaterialScreen() {
                   <View style={styles.drmLoader}>
                     <ActivityIndicator size="large" color="#38BDF8" />
                     <Text style={styles.drmLoaderText}>
-                      Loading secure {activeMedia.type === 'video' ? 'lecture stream' : 'PDF reader'}...
+                      Loading secure {activeMedia.type === 'video' ? 'study material' : 'PDF reader'}...
                     </Text>
                   </View>
                 )}

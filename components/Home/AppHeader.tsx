@@ -10,6 +10,7 @@ import {
   ScrollView,
   Linking,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -325,6 +326,8 @@ export function AppHeader({
 
               <View style={styles.drawerDivider} />
 
+              {Platform.OS === 'ios' && (
+              <>
               <Text style={styles.drawerSectionLabel}>POLICIES & LEGAL</Text>
 
               <TouchableOpacity
@@ -346,6 +349,8 @@ export function AppHeader({
               </TouchableOpacity>
 
               <View style={styles.drawerDivider} />
+              </>
+              )}
 
               {/* Help & Support Card */}
               <View style={styles.supportBox}>

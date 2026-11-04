@@ -13,6 +13,7 @@ import {
   Linking,
   Modal,
   KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,6 +32,9 @@ import {
   StudentProfile,
   changeLoginPhone,
 } from '../api/profile';
+
+// Terms & Privacy rows show in the iOS app only. On Android they stay on the login/signup screen.
+const showPolicyRows = Platform.OS === 'ios';
 
 export default function ProfileScreen() {
   const { user, goal, logout, deleteAccount, refreshUserData } = useApp();
@@ -689,8 +693,10 @@ export default function ProfileScreen() {
 
           {/* Legal, Support & Official Office Card */}
           <View style={styles.legalSection}>
-            <Text style={styles.legalSectionTitle}>Legal & Support</Text>
+            <Text style={styles.legalSectionTitle}>{showPolicyRows ? 'Legal & Support' : 'Help & Support'}</Text>
             <View style={styles.legalCard}>
+              {showPolicyRows && (
+              <>
               <TouchableOpacity
                 style={styles.legalRow}
                 onPress={() => openPolicy('terms')}
@@ -718,6 +724,8 @@ export default function ProfileScreen() {
               </TouchableOpacity>
 
               <View style={styles.legalDivider} />
+              </>
+              )}
 
               <View style={styles.supportBox}>
                 <Text style={styles.supportBoxTitle}>Official Contact & Support</Text>
@@ -1532,8 +1540,8 @@ const styles = StyleSheet.create({
   phoneHint: {
     fontSize: 11,
     color: '#64748B',
-    marginTop: -8,
-    marginBottom: 14,
+    marginTop: 6,
+    marginBottom: 4,
   },
   modalOverlay: {
     flex: 1,
