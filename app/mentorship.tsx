@@ -12,6 +12,7 @@ import {
   Alert,
   Linking,
   AppState,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -512,7 +513,7 @@ export default function MentorshipScreen() {
 
       {/* Booking Slot Modal with 30s Live Hold Timer */}
       <Modal visible={!!selectedMentor} transparent animationType="slide" onRequestClose={handleCloseBookingModal}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View>
@@ -604,7 +605,7 @@ export default function MentorshipScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Goal Switcher Modal */}

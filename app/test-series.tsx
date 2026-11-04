@@ -13,6 +13,7 @@ import {
   AppState,
   AppStateStatus,
   Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -1307,6 +1308,7 @@ export default function TestSeriesScreen() {
             </View>
           </View>
 
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           {/* Question Body */}
           {currentQ && (
             <ScrollView
@@ -1415,6 +1417,8 @@ export default function TestSeriesScreen() {
               <Feather name="chevron-right" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
+
+          </KeyboardAvoidingView>
 
           {/* Question Palette Modal */}
           <Modal visible={paletteVisible} transparent animationType="fade" onRequestClose={() => setPaletteVisible(false)}>

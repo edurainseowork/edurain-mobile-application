@@ -176,13 +176,14 @@ export default function AiTutorScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
       >
         {/* Chat Stream */}
         <ScrollView
           ref={scrollRef}
+          onLayout={() => scrollRef.current?.scrollToEnd({ animated: true })}
           contentContainerStyle={[styles.chatContent, { paddingBottom: 20 }]}
           showsVerticalScrollIndicator={false}
         >

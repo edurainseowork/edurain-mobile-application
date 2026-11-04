@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Linking,
   Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -764,7 +765,7 @@ export default function ProfileScreen() {
         transparent
         onRequestClose={() => setIsEditModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView behavior="padding" style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Student Profile</Text>
@@ -876,7 +877,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

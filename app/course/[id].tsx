@@ -11,6 +11,7 @@ import {
   Platform,
   Linking,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -463,6 +464,7 @@ export default function CourseDetailScreen() {
         </Text>
       </View>
 
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[
@@ -1113,6 +1115,7 @@ export default function CourseDetailScreen() {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* 7. Persistent Sticky Bottom "BUY NOW" Bar (Screenshot 2) */}
       {!enrolled && (

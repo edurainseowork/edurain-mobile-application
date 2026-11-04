@@ -857,7 +857,7 @@ export default function AskYourDoubtScreen() {
 
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <ScrollView
             style={styles.container}
@@ -1246,7 +1246,7 @@ export default function AskYourDoubtScreen() {
               {/* Chat Thread + Keyboard Avoiding View */}
               <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior="padding"
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
               >
                 <ScrollView
@@ -1266,6 +1266,7 @@ export default function AskYourDoubtScreen() {
                     />
                   }
                   onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+                  onLayout={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
                 >
                   {/* Original Doubt Description Card (Screenshot 1 & 2) */}
                   <View style={styles.originalDescCard}>
