@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { Theme } from '../../constants/theme';
 
 interface Msg91WidgetProps {
@@ -7,7 +7,10 @@ interface Msg91WidgetProps {
   widgetId?: string;
   tokenAuth?: string;
   phone?: string;
-  onCompletion?: (res: { success: boolean; message: string }) => void;
+  /** First ask for the number (e.g. changing the login number); otherwise the OTP goes to `phone` right away */
+  askForNumber?: boolean;
+  title?: string;
+  onCompletion?: (res: { success: boolean; message: string; phone: string }) => void;
   onClose?: () => void;
 }
 
@@ -38,12 +41,13 @@ async function callMsg91(path: string, body: Record<string, unknown>): Promise<s
   }
 }
 
-/** Sends an SMS OTP to `phone`, verifies it, and hands MSG91's access token to `onCompletion`. */
+/** Sends an SMS OTP to a number, verifies it, and hands MSG91's access token to `onCompletion`. */
 export function Msg91Widget(props: Msg91WidgetProps) {
   const widgetId = props.widgetId || process.env.EXPO_PUBLIC_MSG91_WIDGET_ID || '';
   const tokenAuth = props.tokenAuth || process.env.EXPO_PUBLIC_MSG91_TOKEN_AUTH || '';
-  const digits = (props.phone || '').replace(/\D/g, '').slice(-10);
+  const presetDigits = (props.phone || '').replace(/\D/g, '').slice(-10);
 
+  const [digits, setDigits] = useState(presetDigits);
   const [reqId, setReqId] = useState('');
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
@@ -51,9 +55,7 @@ export function Msg91Widget(props: Msg91WidgetProps) {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const session = useRef(0);
 
-  // A fresh OTP every time the popup opens; replies from an older session are ignored
-  useEffect(() => {
-    if (!props.visible) return;
+  const sendOtp = (number: string) => {
     const mine = ++session.current;
     setReqId('');
     setOtp('');
@@ -62,12 +64,12 @@ export function Msg91Widget(props: Msg91WidgetProps) {
       setError('OTP service is not configured in this build.');
       return;
     }
-    if (digits.length !== 10) {
+    if (!/^[6-9][0-9]{9}$/.test(number)) {
       setError('Enter a valid 10-digit mobile number first.');
       return;
     }
     setBusy(true);
-    callMsg91('sendOtpMobile', { widgetId, tokenAuth, identifier: `91${digits}` })
+    callMsg91('sendOtpMobile', { widgetId, tokenAuth, identifier: `91${number}` })
       .then((id) => {
         if (session.current !== mine) return;
         setReqId(id);
@@ -75,7 +77,22 @@ export function Msg91Widget(props: Msg91WidgetProps) {
       })
       .catch((err) => session.current === mine && setError(err.message))
       .finally(() => session.current === mine && setBusy(false));
-  }, [props.visible, digits, widgetId, tokenAuth]);
+  };
+
+  // A fresh start every time the popup opens; replies from an older session are ignored
+  useEffect(() => {
+    if (!props.visible) return;
+    setDigits(presetDigits);
+    if (props.askForNumber) {
+      session.current++;
+      setReqId('');
+      setOtp('');
+      setError('');
+      setBusy(false);
+      return;
+    }
+    sendOtp(presetDigits);
+  }, [props.visible, presetDigits, props.askForNumber, widgetId, tokenAuth]);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -92,7 +109,7 @@ export function Msg91Widget(props: Msg91WidgetProps) {
     setError('');
     try {
       const accessToken = await callMsg91('verifyOtp', { widgetId, tokenAuth, reqId, otp });
-      if (session.current === mine) props.onCompletion?.({ success: true, message: accessToken });
+      if (session.current === mine) props.onCompletion?.({ success: true, message: accessToken, phone: digits });
     } catch (err: any) {
       if (session.current === mine) setError(err.message || 'Wrong OTP. Please try again.');
     } finally {
@@ -126,16 +143,53 @@ export function Msg91Widget(props: Msg91WidgetProps) {
 
   return (
     <Modal visible={props.visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView behavior="padding" style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.headerBadge}>
             <Text style={styles.headerBadgeText}>OTP Verification</Text>
           </View>
-          <Text style={styles.title}>Verify Phone Number</Text>
+          <Text style={styles.title}>{props.title || 'Verify Phone Number'}</Text>
           <Text style={styles.desc}>
-            {reqId ? `Enter the OTP sent to +91 ${digits}` : busy ? `Sending OTP to +91 ${digits}…` : `Verifying +91 ${digits}`}
+            {reqId
+              ? `Enter the OTP sent to +91 ${digits}`
+              : busy
+                ? `Sending OTP to +91 ${digits}…`
+                : props.askForNumber
+                  ? 'Enter the new mobile number. We will send an OTP to it.'
+                  : `Verifying +91 ${digits}`}
           </Text>
 
+          {props.askForNumber && !reqId && (
+            <>
+              <View style={styles.numberRow}>
+                <Text style={styles.numberPrefix}>+91</Text>
+                <TextInput
+                  style={styles.numberInput}
+                  value={digits}
+                  onChangeText={(v) => setDigits(v.replace(/\D/g, '').slice(0, 10))}
+                  keyboardType="number-pad"
+                  autoComplete="tel"
+                  maxLength={10}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor={Theme.colors.text.muted}
+                  editable={!busy}
+                  onSubmitEditing={() => sendOtp(digits)}
+                />
+              </View>
+              {!!error && <Text style={styles.errorText}>{error}</Text>}
+              <TouchableOpacity
+                style={[styles.verifyButton, (digits.length !== 10 || busy) && styles.buttonDisabled]}
+                onPress={() => sendOtp(digits)}
+                disabled={digits.length !== 10 || busy}
+                activeOpacity={0.8}
+              >
+                {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Send OTP</Text>}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {!(props.askForNumber && !reqId) && (
+          <>
           <TextInput
             style={styles.otpInput}
             value={otp}
@@ -168,12 +222,19 @@ export function Msg91Widget(props: Msg91WidgetProps) {
               </Text>
             </TouchableOpacity>
           )}
+          {props.askForNumber && !!reqId && (
+            <TouchableOpacity style={styles.resendBtn} onPress={() => { session.current++; setReqId(''); setOtp(''); setError(''); setBusy(false); }} activeOpacity={0.7}>
+              <Text style={styles.resendText}>Change number</Text>
+            </TouchableOpacity>
+          )}
+          </>
+          )}
 
           <TouchableOpacity style={styles.cancelBtn} onPress={handleClose} activeOpacity={0.7}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -225,6 +286,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 20,
+  },
+  numberRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Theme.colors.accent.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  numberPrefix: {
+    fontSize: 17,
+    fontFamily: Theme.fonts.semiBold,
+    color: Theme.colors.ink.deep,
+    marginRight: 8,
+  },
+  numberInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 17,
+    letterSpacing: 1,
+    fontFamily: Theme.fonts.semiBold,
+    color: Theme.colors.ink.deep,
   },
   otpInput: {
     width: '100%',

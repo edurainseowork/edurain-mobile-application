@@ -211,7 +211,8 @@ export async function sendResolutionAction(params: {
   }
 }
 
-export async function askEduAi(prompt: string, cohort?: string): Promise<{ text: string }> {
+/** On failure `error` holds the server's reason (daily limit reached, course not bought, …). */
+export async function askEduAi(prompt: string, cohort?: string): Promise<{ text: string; error?: string }> {
   try {
     const res = await apiFetch<any>('/api/ai/doubt/stream', {
       method: 'POST',
@@ -236,29 +237,25 @@ export async function askEduAi(prompt: string, cohort?: string): Promise<{ text:
     }
     return { text: res?.response || res?.text || res?.content || 'AI Tutor processed your inquiry.' };
   } catch (err: any) {
-    return {
-      text: 'The AI Tutor analyzed your question. For a detailed step-by-step breakdown, please review the formula and conditions carefully.',
-    };
+    return { text: '', error: err?.message || 'EduAI Tutor is not reachable right now. Please try again.' };
   }
 }
 
-export async function fetchAiQuota(): Promise<QuotaStatus> {
+/** Today's count from the server (it sends { success, data: {...} }). Null if it could not be read. */
+export async function fetchAiQuota(): Promise<QuotaStatus | null> {
   try {
     const res = await apiFetch<any>('/api/ai/doubt/quota');
+    const q = res?.data ?? res;
+    if (typeof q?.questionsLeft !== 'number') return null;
     return {
-      isAllowed: res?.isAllowed ?? true,
-      reason: res?.reason ?? null,
-      questionsUsed: res?.questionsUsed ?? 0,
-      questionsLimit: res?.questionsLimit ?? 30,
-      questionsLeft: res?.questionsLeft ?? 30,
+      isAllowed: q.isAllowed !== false,
+      reason: q.reason ?? null,
+      questionsUsed: q.questionsUsed ?? 0,
+      questionsLimit: q.questionsLimit ?? 30,
+      questionsLeft: q.questionsLeft,
     };
-  } catch {
-    return {
-      isAllowed: true,
-      reason: null,
-      questionsUsed: 0,
-      questionsLimit: 30,
-      questionsLeft: 30,
-    };
+  } catch (err: any) {
+    // Not enrolled (402) or limit reached (429): show the server's reason instead of a made-up count
+    return { isAllowed: false, reason: err?.message || null, questionsUsed: 0, questionsLimit: 30, questionsLeft: 0 };
   }
 }

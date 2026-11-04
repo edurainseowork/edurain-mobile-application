@@ -18,6 +18,7 @@ import {
   RefreshControl,
   AppState,
 } from 'react-native';
+import { showPermissionAlert } from '../services/permissionAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -566,9 +567,9 @@ export default function AskYourDoubtScreen() {
             try {
               const perm = await ImagePicker.requestCameraPermissionsAsync();
               if (!perm.granted) {
-                Alert.alert(
+                showPermissionAlert(
                   'Camera Permission Required',
-                  'Please enable Camera permissions in your device settings to photograph questions.'
+                  'Allow camera access to photograph your question.'
                 );
                 return;
               }
@@ -594,9 +595,9 @@ export default function AskYourDoubtScreen() {
             try {
               const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
               if (!perm.granted) {
-                Alert.alert(
+                showPermissionAlert(
                   'Photo Library Permission Required',
-                  'Please grant photo library access in Settings to select problem screenshots.'
+                  'Allow photo access to choose a screenshot of your question.'
                 );
                 return;
               }

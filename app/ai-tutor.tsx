@@ -50,16 +50,12 @@ export default function AiTutorScreen() {
   ]);
   const [inputQuery, setInputQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [quota, setQuota] = useState<QuotaStatus>({
-    isAllowed: true,
-    reason: null,
-    questionsUsed: 0,
-    questionsLimit: 30,
-    questionsLeft: 30,
-  });
+  // null until the server answers, so a wrong "30" never flashes on screen
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
+  const refreshQuota = () => fetchAiQuota().then((q) => q && setQuota(q)).catch(() => {});
 
   useEffect(() => {
-    fetchAiQuota().then(setQuota).catch(() => {});
+    refreshQuota();
     if (goal?.name?.toLowerCase().includes('neet')) {
       setCohort('NEET_UG');
     } else if (goal?.name?.toLowerCase().includes('foundation')) {
@@ -96,7 +92,7 @@ export default function AiTutorScreen() {
         aiResponseText = `### 1. Quick Concept Overview\nMai aapka **EduRain AI Academic Mentor** hu! 🎓\n\nMujhe EduRain platform par khas taur par aapke study doubts, IIT-JEE, NEET-UG aur CBSE Board exams ke numericals, derivations aur formulas solve karne ke liye train kiya gaya hai. Aap mujhse koi bhi academic sawal ya numerical puch sakte hain!`;
       } else {
         const res = await askEduAi(prompt, cohort);
-        aiResponseText = res.text;
+        aiResponseText = res.error ? `⚠️ ${res.error}` : res.text;
       }
 
       const aiMsg: AiChatMessage = {
@@ -106,11 +102,7 @@ export default function AiTutorScreen() {
         timestamp: 'Just now',
       };
       setMessages((prev) => [...prev, aiMsg]);
-      setQuota((prev) => ({
-        ...prev,
-        questionsUsed: prev.questionsUsed + 1,
-        questionsLeft: Math.max(0, prev.questionsLeft - 1),
-      }));
+      refreshQuota();
     } finally {
       setLoading(false);
       setTimeout(() => {
@@ -147,7 +139,7 @@ export default function AiTutorScreen() {
           <Text style={styles.pageTitle}>EduAI Tutor</Text>
           <View style={styles.quotaPill}>
             <Feather name="zap" size={12} color="#0D9488" />
-            <Text style={styles.quotaText}>{quota.questionsLeft} questions left</Text>
+            <Text style={styles.quotaText}>{quota ? `${quota.questionsLeft} questions left` : '…'}</Text>
           </View>
         </View>
         <Text style={styles.pageSubtitle}>

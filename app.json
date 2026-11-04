@@ -5,7 +5,7 @@
     "owner": "edurainindia",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon-1024.png",
     "scheme": "edurain",
     "userInterfaceStyle": "automatic",
     "androidNavigationBar": {
@@ -33,6 +33,10 @@
     },
     "android": {
       "package": "com.edurainindia.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
       "googleServicesFile": "./google-services.json",
       "splash": {
         "image": "./assets/images/logo.png",
@@ -42,7 +46,7 @@
       "permissions": [
         "POST_NOTIFICATIONS",
         "CAMERA",
-        "READ_MEDIA_IMAGES",
+        
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ]
@@ -63,7 +67,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow EDURAIN to access your photo library to set your profile picture and upload study doubt images.",
-          "cameraPermission": "Allow EDURAIN to access your camera to take a profile picture and capture doubt problems."
+          "cameraPermission": "Allow EDURAIN to access your camera to take a profile picture and capture doubt problems.",
+        "microphonePermission": false
         }
       ]
     ],

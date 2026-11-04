@@ -107,6 +107,7 @@ export default function CourseDetailScreen() {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [publicCoupons, setPublicCoupons] = useState<PublicCoupon[]>([]);
+  const [showAllCoupons, setShowAllCoupons] = useState(false);
 
   // Enrollment / Checkout State
   const [enrolling, setEnrolling] = useState(false);
@@ -232,8 +233,9 @@ export default function CourseDetailScreen() {
   }, [supportContacts]);
 
   // Apply Coupon Handler
-  const handleApplyCoupon = async () => {
-    const clean = couponCode.trim().toUpperCase();
+  const handleApplyCoupon = async (codeOverride?: string) => {
+    const clean = (codeOverride ?? couponCode).trim().toUpperCase();
+    if (codeOverride) setCouponCode(clean);
     if (!clean) {
       setCouponError('Please enter a coupon code');
       return;
@@ -902,7 +904,7 @@ export default function CourseDetailScreen() {
                           styles.couponApplyBtn,
                           (!couponCode.trim() || couponLoading) && styles.couponApplyBtnDisabled,
                         ]}
-                        onPress={handleApplyCoupon}
+                        onPress={() => handleApplyCoupon()}
                         disabled={!couponCode.trim() || couponLoading}
                       >
                         {couponLoading ? (
@@ -913,6 +915,33 @@ export default function CourseDetailScreen() {
                       </TouchableOpacity>
                     </View>
                     {couponError && <Text style={styles.couponErrorText}>{couponError}</Text>}
+
+                    {/* Public coupons made in CMS for this course (same list as the website) */}
+                    {publicCoupons.length > 0 && (
+                      <View style={styles.publicCouponList}>
+                        <Text style={styles.publicCouponHeading}>AVAILABLE COUPONS</Text>
+                        {(showAllCoupons ? publicCoupons : publicCoupons.slice(0, 3)).map((c) => (
+                          <View key={c.code} style={styles.publicCouponRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.publicCouponCode} numberOfLines={1}>{c.code}</Text>
+                              <Text style={styles.publicCouponLabel}>
+                                {c.discountPercent}% OFF{c.maxDiscountAmount ? ` up to ${formatINR(c.maxDiscountAmount)}` : ''}
+                              </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => handleApplyCoupon(c.code)} disabled={couponLoading} hitSlop={8}>
+                              <Text style={[styles.publicCouponApply, couponLoading && { opacity: 0.5 }]}>APPLY</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                        {publicCoupons.length > 3 && (
+                          <TouchableOpacity onPress={() => setShowAllCoupons((v) => !v)}>
+                            <Text style={styles.publicCouponToggle}>
+                              {showAllCoupons ? 'Show less' : `View all ${publicCoupons.length} coupons`}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
@@ -1841,6 +1870,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontFamily: Theme.fonts.bold,
+  },
+  publicCouponList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  publicCouponHeading: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: '#64748B',
+  },
+  publicCouponRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(23, 90, 103, 0.4)',
+    backgroundColor: '#F4FAFB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  publicCouponCode: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    color: '#0B1C30',
+  },
+  publicCouponLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#047857',
+    marginTop: 1,
+  },
+  publicCouponApply: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#175A67',
+  },
+  publicCouponToggle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#175A67',
   },
   couponErrorText: {
     marginTop: 6,

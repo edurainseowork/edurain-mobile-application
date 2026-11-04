@@ -19,6 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
+import { Msg91Widget } from '../components/Shared/Msg91Widget';
+import { showPermissionAlert } from '../services/permissionAlert';
 import { Theme } from '../constants/theme';
 import {
   fetchProfile,
@@ -26,6 +28,7 @@ import {
   uploadProfilePhoto,
   removeProfilePhoto,
   StudentProfile,
+  changeLoginPhone,
 } from '../api/profile';
 
 export default function ProfileScreen() {
@@ -35,8 +38,8 @@ export default function ProfileScreen() {
     if (user) {
       return {
         id: 0,
-        name: user.name || 'Abhinav',
-        email: user.email || 'abhinavchauhan0011@gmail.com',
+        name: user.name || '',
+        email: user.email || '',
         phone: user.phone || null,
         profilePhoto: user.photo || null,
         memberSince: 'Oct 2026',
@@ -49,6 +52,7 @@ export default function ProfileScreen() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [isPhoneChangeOpen, setIsPhoneChangeOpen] = useState(false);
 
   // Editable Form Fields
   const [name, setName] = useState(user?.name || '');
@@ -96,7 +100,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Camera permission is required.');
+            showPermissionAlert('Camera Permission Required', 'Allow camera access to take your profile picture.');
             return;
           }
           const res = await ImagePicker.launchCameraAsync({
@@ -115,7 +119,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Photo gallery permission is required.');
+            showPermissionAlert('Photo Library Permission Required', 'Allow photo access to choose your profile picture.');
             return;
           }
           const res = await ImagePicker.launchImageLibraryAsync({
@@ -180,7 +184,6 @@ export default function ProfileScreen() {
     try {
       const updated = await updateProfile({
         name: name.trim(),
-        phone: phone.trim() || null,
         gender,
         city: city.trim() || null,
         state: stateName.trim() || null,
@@ -516,9 +519,9 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.detailTile}
               activeOpacity={0.7}
-              onPress={openEditModal}
+              onPress={() => setIsPhoneChangeOpen(true)}
             >
-              <Text style={styles.tileLabel}>MOBILE NUMBER</Text>
+              <Text style={styles.tileLabel}>MOBILE NUMBER · LOGIN</Text>
               <View style={styles.tileContentRow}>
                 <View style={styles.tileValWrap}>
                   <Feather name="phone" size={16} color="#64748B" />
@@ -758,6 +761,26 @@ export default function ProfileScreen() {
         </ScrollView>
       )}
 
+      {/* Change login number: OTP goes to the new number, then the backend switches it */}
+      <Msg91Widget
+        visible={isPhoneChangeOpen}
+        askForNumber
+        title={profile?.phone || user?.phone ? 'Change Mobile Number' : 'Add Mobile Number'}
+        onClose={() => setIsPhoneChangeOpen(false)}
+        onCompletion={async (res) => {
+          setIsPhoneChangeOpen(false);
+          try {
+            const newPhone = await changeLoginPhone(res.phone, res.message);
+            setPhone(newPhone);
+            await loadData();
+            await refreshUserData();
+            Alert.alert('Number Updated', `+91 ${newPhone} is now your login number.`);
+          } catch (err: any) {
+            Alert.alert('Could not change number', err.message || 'Please try again.');
+          }
+        }}
+      />
+
       {/* Edit Profile Modal */}
       <Modal
         visible={isEditModalOpen}
@@ -799,13 +822,24 @@ export default function ProfileScreen() {
               </View>
 
               <Text style={styles.fieldLabel}>MOBILE NUMBER</Text>
-              <TextInput
-                style={styles.fieldInput}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="10-digit mobile number"
-                keyboardType="phone-pad"
-              />
+              <View style={styles.readOnlyFieldWrap}>
+                <TextInput
+                  style={[styles.fieldInput, styles.fieldInputDisabled]}
+                  value={phone || 'Not added yet'}
+                  editable={false}
+                />
+                <TouchableOpacity
+                  style={styles.loginEmailBadgeInModal}
+                  onPress={() => {
+                    // The OTP popup opens once this sheet has closed (iOS shows one modal at a time)
+                    setIsEditModalOpen(false);
+                    setTimeout(() => setIsPhoneChangeOpen(true), 450);
+                  }}
+                >
+                  <Text style={styles.loginEmailTextInModal}>{phone ? 'CHANGE' : 'ADD'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.phoneHint}>Login number · changed only with an OTP on the new number</Text>
 
               <Text style={styles.fieldLabel}>TARGET EXAM & STREAM</Text>
               <View style={[styles.fieldInput, styles.fieldInputDisabled]}>
@@ -1473,6 +1507,12 @@ const styles = StyleSheet.create({
   },
 
   /* Edit Modal */
+  phoneHint: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: -8,
+    marginBottom: 14,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

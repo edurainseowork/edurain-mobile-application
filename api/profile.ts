@@ -55,6 +55,19 @@ export async function updateProfile(
   return res.data;
 }
 
+/**
+ * Moves the login number to `phone` after its OTP was verified (MSG91 access token).
+ * Then refreshes the sign-in token so the new number is used right away.
+ */
+export async function changeLoginPhone(phone: string, accessToken: string): Promise<string> {
+  const res = await apiFetch<{ success: boolean; phone: string }>('/api/auth/change-phone', {
+    method: 'POST',
+    body: JSON.stringify({ phone, accessToken }),
+  });
+  await auth.currentUser?.getIdToken(true).catch(() => {});
+  return res.phone;
+}
+
 function base64ToUint8Array(base64: string): Uint8Array {
   // Safe base64 decoding for binary image upload without external dependencies
   const clean = base64.replace(/^data:image\/[a-z]+;base64,/, '').replace(/[^A-Za-z0-9+/=]/g, '');
