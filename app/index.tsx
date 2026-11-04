@@ -437,6 +437,7 @@ export default function AuthScreen() {
                   >
                     Privacy Policy
                   </Text>
+                  . If I am under 18, my parent or guardian also agrees.
                 </Text>
               </TouchableOpacity>
 
