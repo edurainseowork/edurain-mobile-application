@@ -8,19 +8,10 @@
     "icon": "./assets/images/icon-1024.png",
     "scheme": "edurain",
     "userInterfaceStyle": "automatic",
-    "androidNavigationBar": {
-      "barStyle": "dark-content",
-      "backgroundColor": "#FFFFFF"
-    },
     "androidStatusBar": {
       "barStyle": "dark-content",
       "backgroundColor": "#FFFFFF",
       "translucent": true
-    },
-    "splash": {
-      "image": "./assets/images/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
@@ -38,11 +29,6 @@
         "backgroundColor": "#FFFFFF"
       },
       "googleServicesFile": "./google-services.json",
-      "splash": {
-        "image": "./assets/images/logo.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#FFFFFF"
-      },
       "permissions": [
         "POST_NOTIFICATIONS",
         "CAMERA",
@@ -55,6 +41,14 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
       "expo-router",
       [
         "expo-notifications",

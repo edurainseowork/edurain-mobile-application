@@ -74,7 +74,7 @@ export default function TestSeriesScreen() {
   const [testResult, setTestResult] = useState<TestResultResponse | null>(null);
   const [wasAutoSubmitted, setWasAutoSubmitted] = useState(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const examActiveRef = useRef(false);
   examActiveRef.current = examActive;
   const violationCountRef = useRef(0);
