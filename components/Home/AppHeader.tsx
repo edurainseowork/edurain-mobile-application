@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../../context/AppContext';
 import { Theme } from '../../constants/theme';
+import { openPolicy, type PolicyKind } from '../../services/policyLinks';
 import { fetchCategories, Category } from '../../api/goal';
 import { fetchNotifications, subscribeNotificationUpdates } from '../../api/notifications';
 
@@ -142,6 +143,11 @@ export function AppHeader({
     setTimeout(() => {
       router.push(route as any);
     }, 150);
+  };
+
+  const openPolicyFromDrawer = (kind: PolicyKind) => {
+    setDrawerVisible(false);
+    setTimeout(() => openPolicy(kind), 150);
   };
 
   return (
@@ -323,7 +329,7 @@ export function AppHeader({
 
               <TouchableOpacity
                 style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/terms')}
+                onPress={() => openPolicyFromDrawer('terms')}
                 activeOpacity={0.7}
               >
                 <Feather name="file-text" size={18} color="#475569" />
@@ -332,7 +338,7 @@ export function AppHeader({
 
               <TouchableOpacity
                 style={styles.drawerItem}
-                onPress={() => navigateFromDrawer('/privacy')}
+                onPress={() => openPolicyFromDrawer('privacy')}
                 activeOpacity={0.7}
               >
                 <Feather name="shield" size={18} color="#475569" />

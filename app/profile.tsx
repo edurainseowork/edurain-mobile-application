@@ -20,6 +20,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useApp } from '../context/AppContext';
 import { Msg91Widget } from '../components/Shared/Msg91Widget';
+import { openPolicy } from '../services/policyLinks';
 import { showPermissionAlert } from '../services/permissionAlert';
 import { Theme } from '../constants/theme';
 import {
@@ -692,7 +693,7 @@ export default function ProfileScreen() {
             <View style={styles.legalCard}>
               <TouchableOpacity
                 style={styles.legalRow}
-                onPress={() => router.push('/terms' as any)}
+                onPress={() => openPolicy('terms')}
                 activeOpacity={0.7}
               >
                 <View style={styles.legalRowLeft}>
@@ -706,7 +707,7 @@ export default function ProfileScreen() {
 
               <TouchableOpacity
                 style={styles.legalRow}
-                onPress={() => router.push('/privacy' as any)}
+                onPress={() => openPolicy('privacy')}
                 activeOpacity={0.7}
               >
                 <View style={styles.legalRowLeft}>

@@ -17,6 +17,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
 import { Msg91Widget } from '../components/Shared/Msg91Widget';
+import { openPolicy } from '../services/policyLinks';
 import { fetchCategories, Category } from '../api/courses';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
@@ -425,14 +426,14 @@ export default function AuthScreen() {
                   I agree to the{' '}
                   <Text
                     style={styles.legalLink}
-                    onPress={() => router.push('/terms' as any)}
+                    onPress={() => openPolicy('terms')}
                   >
                     Terms & Conditions
                   </Text>{' '}
                   and{' '}
                   <Text
                     style={styles.legalLink}
-                    onPress={() => router.push('/privacy' as any)}
+                    onPress={() => openPolicy('privacy')}
                   >
                     Privacy Policy
                   </Text>
@@ -499,11 +500,11 @@ export default function AuthScreen() {
         <View style={styles.footerWrap}>
           <Text style={styles.footerText}>
             By continuing, you agree to EDURAIN's{' '}
-            <Text style={styles.footerLink} onPress={() => router.push('/terms' as any)}>
+            <Text style={styles.footerLink} onPress={() => openPolicy('terms')}>
               Terms of Service
             </Text>{' '}
             &{' '}
-            <Text style={styles.footerLink} onPress={() => router.push('/privacy' as any)}>
+            <Text style={styles.footerLink} onPress={() => openPolicy('privacy')}>
               Privacy Policy
             </Text>
           </Text>
