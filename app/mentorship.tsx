@@ -46,6 +46,7 @@ export default function MentorshipScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const isGrid = viewMode === 'grid';
 
   // My Sessions state
   const [myBookings, setMyBookings] = useState<MentorBooking[]>([]);
@@ -413,11 +414,7 @@ export default function MentorshipScreen() {
                 <Text style={styles.filterPillActiveText}>Batch Mentor</Text>
               </View>
 
-              <View style={styles.filterRight}>
-                <Text style={styles.countText}>
-                  Showing <Text style={styles.countBold}>{mentors.length}</Text> of {totalCount || mentors.length} mentors
-                </Text>
-                <View style={styles.viewToggleGroup}>
+              <View style={styles.viewToggleGroup}>
                   <TouchableOpacity
                     style={[styles.toggleBtn, viewMode === 'grid' && styles.toggleBtnActive]}
                     onPress={() => setViewMode('grid')}
@@ -430,9 +427,11 @@ export default function MentorshipScreen() {
                   >
                     <Feather name="list" size={14} color={viewMode === 'list' ? '#0F3C45' : '#94A3B8'} />
                   </TouchableOpacity>
-                </View>
               </View>
             </View>
+            <Text style={styles.countText}>
+              Showing <Text style={styles.countBold}>{mentors.length}</Text> of {totalCount || mentors.length} mentors
+            </Text>
 
             {/* Mentors List */}
             {loading ? (
@@ -452,11 +451,11 @@ export default function MentorshipScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={styles.mentorsContainer}>
+              <View style={[styles.mentorsContainer, isGrid && styles.mentorsGrid]}>
                 {mentors.map((m) => {
                   const hasSlots = m.openSlots > 0;
                   return (
-                    <View key={m.id} style={styles.mentorCard}>
+                    <View key={m.id} style={[styles.mentorCard, isGrid && styles.mentorCardGrid]}>
                       <View style={styles.avatarBox}>
                         {m.photo ? (
                           <Image source={{ uri: m.photo }} style={styles.avatarImg} />
@@ -469,9 +468,9 @@ export default function MentorshipScreen() {
                         )}
                       </View>
 
-                      <View style={styles.mentorInfo}>
+                      <View style={[styles.mentorInfo, isGrid && styles.mentorInfoGrid]}>
                         <View style={styles.nameRow}>
-                          <Text style={styles.mentorName}>{m.name}</Text>
+                          <Text style={styles.mentorName} numberOfLines={isGrid ? 2 : undefined}>{m.name}</Text>
                           {m.verified && <MaterialCommunityIcons name="check-decagram" size={15} color="#0284C7" />}
                         </View>
 
@@ -494,7 +493,7 @@ export default function MentorshipScreen() {
                       </View>
 
                       <TouchableOpacity
-                        style={[styles.bookBtn, !hasSlots && { opacity: 0.6 }]}
+                        style={[styles.bookBtn, isGrid && styles.bookBtnGrid, !hasSlots && { opacity: 0.6 }]}
                         activeOpacity={0.8}
                         onPress={() => handleOpenBooking(m)}
                         disabled={!hasSlots}
@@ -758,7 +757,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 8,
+    marginBottom: 8,
   },
   filterPillActive: {
     flexDirection: 'row',
@@ -774,12 +774,8 @@ const styles = StyleSheet.create({
     fontFamily: Theme.fonts.bold,
     color: '#FFFFFF',
   },
-  filterRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   countText: {
+    marginBottom: 14,
     fontSize: 11.5,
     fontFamily: Theme.fonts.regular,
     color: '#64748B',
@@ -804,6 +800,29 @@ const styles = StyleSheet.create({
   },
   mentorsContainer: {
     gap: 12,
+  },
+  mentorsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    columnGap: 0,
+    rowGap: 12,
+  },
+  mentorCardGrid: {
+    width: '48%',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    padding: 12,
+    gap: 8,
+  },
+  mentorInfoGrid: {
+    flex: 0,
+    flexGrow: 1,
+    alignSelf: 'stretch',
+  },
+  bookBtnGrid: {
+    alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   mentorCard: {
     flexDirection: 'row',
@@ -850,6 +869,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   mentorName: {
+    flexShrink: 1,
     fontSize: 15,
     fontFamily: Theme.fonts.bold,
     color: '#0F3C45',

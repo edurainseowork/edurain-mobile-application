@@ -923,7 +923,7 @@ export default function AskYourDoubtScreen() {
 
               {/* Description */}
               <View style={styles.descLabelRow}>
-                <Text style={styles.inputLabel}>
+                <Text style={[styles.inputLabel, styles.descLabel]}>
                   Describe What You've Tried & Where You're Stuck <Text style={styles.asterisk}>*</Text>
                 </Text>
                 <Text style={styles.charCount}>{description.length} / 1000 chars</Text>
@@ -942,7 +942,7 @@ export default function AskYourDoubtScreen() {
               <Text style={styles.inputLabel}>
                 Doubt Diagram / Problem Screenshot{' '}
                 <Text style={styles.subLabel}>
-                  (1 Photo {selectedImage ? '1' : '0'} / 1 image max)
+                  ({selectedImage ? '1' : '0'}/1 photo)
                 </Text>
               </Text>
 
@@ -1720,8 +1720,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 8,
+  },
+  descLabel: {
+    flex: 1,
   },
   charCount: {
+    flexShrink: 0,
     fontSize: 11,
     fontFamily: Theme.fonts.regular,
     color: '#94A3B8',

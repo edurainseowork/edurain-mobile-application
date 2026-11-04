@@ -440,7 +440,7 @@ export default function ProfileScreen() {
                 <View style={styles.starCircle}>
                   <Feather name="star" size={16} color="#D97706" />
                 </View>
-                <View>
+                <View style={styles.strengthTextCol}>
                   <View style={styles.strengthTitleRow}>
                     <Text style={styles.strengthTitle}>
                       Profile Strength: {strengthPercent}%
@@ -592,17 +592,17 @@ export default function ProfileScreen() {
 
             {/* Field 6: Email Address */}
             <View style={styles.detailTile}>
-              <Text style={styles.tileLabel}>EMAIL ADDRESS</Text>
-              <View style={styles.tileContentRow}>
-                <View style={styles.tileValWrap}>
-                  <Feather name="mail" size={16} color="#64748B" />
-                  <Text style={styles.tileVal} numberOfLines={1}>
-                    {profile?.email || user?.email || 'student@edurain.in'}
-                  </Text>
-                </View>
+              <View style={styles.tileLabelRow}>
+                <Text style={[styles.tileLabel, styles.tileLabelInRow]}>EMAIL ADDRESS</Text>
                 <View style={styles.loginEmailBadge}>
                   <Text style={styles.loginEmailText}>LOGIN EMAIL</Text>
                 </View>
+              </View>
+              <View style={styles.tileEmailRow}>
+                <Feather name="mail" size={16} color="#64748B" />
+                <Text style={[styles.tileVal, styles.tileValShrink]} numberOfLines={2}>
+                  {profile?.email || user?.email || 'student@edurain.in'}
+                </Text>
               </View>
             </View>
           </View>
@@ -810,22 +810,22 @@ export default function ProfileScreen() {
                 placeholder="Student Name"
               />
 
-              <Text style={styles.fieldLabel}>EMAIL ADDRESS</Text>
-              <View style={styles.readOnlyFieldWrap}>
-                <TextInput
-                  style={[styles.fieldInput, styles.fieldInputDisabled]}
-                  value={profile?.email || user?.email || 'student@edurain.in'}
-                  editable={false}
-                />
-                <View style={styles.loginEmailBadgeInModal}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={[styles.fieldLabel, styles.fieldLabelInRow]}>EMAIL ADDRESS</Text>
+                <View style={styles.loginEmailBadgeInline}>
                   <Text style={styles.loginEmailTextInModal}>LOGIN EMAIL</Text>
                 </View>
+              </View>
+              <View style={styles.readOnlyBox}>
+                <Text style={styles.readOnlyBoxText} selectable>
+                  {profile?.email || user?.email || 'student@edurain.in'}
+                </Text>
               </View>
 
               <Text style={styles.fieldLabel}>MOBILE NUMBER</Text>
               <View style={styles.readOnlyFieldWrap}>
                 <TextInput
-                  style={[styles.fieldInput, styles.fieldInputDisabled]}
+                  style={[styles.fieldInput, styles.fieldInputDisabled, styles.fieldInputWithBadge]}
                   value={phone || 'Not added yet'}
                   editable={false}
                 />
@@ -1151,15 +1151,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   strengthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
     marginBottom: 12,
   },
   strengthHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  strengthTextCol: {
     flex: 1,
   },
   starCircle: {
@@ -1198,6 +1198,8 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   completeBtn: {
+    alignSelf: 'flex-start',
+    marginLeft: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1293,6 +1295,25 @@ const styles = StyleSheet.create({
     color: '#64748B',
     letterSpacing: 0.6,
     marginBottom: 4,
+  },
+  tileLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
+  tileLabelInRow: {
+    marginBottom: 0,
+    flexShrink: 1,
+  },
+  tileValShrink: {
+    flexShrink: 1,
+  },
+  tileEmailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   tileContentRow: {
     flexDirection: 'row',
@@ -1582,6 +1603,42 @@ const styles = StyleSheet.create({
   fieldInputDisabled: {
     backgroundColor: '#F1F5F9',
     color: '#64748B',
+  },
+  fieldLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  fieldLabelInRow: {
+    marginTop: 0,
+    marginBottom: 0,
+    flexShrink: 1,
+  },
+  loginEmailBadgeInline: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  readOnlyBox: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  readOnlyBoxText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Theme.fonts.regular,
+    color: '#64748B',
+  },
+  fieldInputWithBadge: {
+    paddingRight: 84,
   },
   readOnlyFieldWrap: {
     position: 'relative',
