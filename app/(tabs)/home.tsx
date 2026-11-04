@@ -281,7 +281,7 @@ export default function HomeScreen() {
             <Text style={styles.libCardTitle}>Your Class Material</Text>
             <Text style={styles.libCardBadge}>PDF Notes & Maps</Text>
             <Text style={styles.libCardSub} numberOfLines={2}>
-              Recorded Lectures & Archives
+               Materials & Archives
             </Text>
             <View style={styles.libCardLinkBtn}>
               <Text style={styles.libCardLinkText}>View Materials  ›</Text>

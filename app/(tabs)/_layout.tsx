@@ -44,24 +44,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="daily-drop"
-        options={{
-          title: 'Daily Drop',
-          tabBarIcon: ({ color, size }) => <Feather name="zap" size={size} color={color as string} />,
-        }}
-      />
-      <Tabs.Screen
         name="courses"
         options={{
           title: 'Batches',
           tabBarIcon: ({ color, size }) => <Feather name="book-open" size={size} color={color as string} />,
-        }}
-      />
-      <Tabs.Screen
-        name="test-pass"
-        options={{
-          title: 'Test Pass',
-          tabBarIcon: ({ color, size }) => <Feather name="check-circle" size={size} color={color as string} />,
         }}
       />
     </Tabs>

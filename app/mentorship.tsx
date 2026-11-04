@@ -363,7 +363,7 @@ export default function MentorshipScreen() {
                         <Text style={styles.meetPendingText}>
                           {b.linkReady && b.joinOpensAt
                             ? `Your Google Meet link is ready. The Join button opens at ${new Date(b.joinOpensAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}.`
-                            : 'Your session link will be coming soon. Your mentor will share the Google Meet link here.'}
+                            : 'Your mentor will share the Google Meet link here before the session.'}
                         </Text>
                       </View>
                     )}
