@@ -274,7 +274,7 @@ export default function MyPurchasesScreen() {
 
             <Text style={styles.cardHeading}>Your Enrolled Batches</Text>
             <Text style={styles.cardDescription}>
-              Access your active academic batches, daily lecture streams, comprehensive curriculum roadmap, and chapter-wise DPPs.
+              Access your active academic batches, daily study material, comprehensive curriculum roadmap, and chapter-wise DPPs.
             </Text>
 
             <View style={styles.cardDivider} />
@@ -291,7 +291,7 @@ export default function MyPurchasesScreen() {
                 }}
                 activeOpacity={0.7}
               >
-                <Text style={styles.resumeLecturesText}>Resume Lectures ›</Text>
+                <Text style={styles.resumeLecturesText}>Start Learning ›</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -412,7 +412,7 @@ export default function MyPurchasesScreen() {
                   {/* Syllabus Covered & Lecture Count */}
                   <View style={styles.syllabusRow}>
                     <Text style={styles.syllabusLabel}>Syllabus Covered</Text>
-                    <Text style={styles.lecturesCountText}>{course.lectures} Lectures</Text>
+                    <Text style={styles.lecturesCountText}>{course.lectures} Materials</Text>
                   </View>
 
                   {/* Progress Bar Track */}

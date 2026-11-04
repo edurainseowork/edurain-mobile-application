@@ -58,7 +58,7 @@ export default function TermsScreen() {
 
         <View style={styles.introCard}>
           <Text style={styles.introText}>
-            Welcome to EDURAIN. By creating an account, downloading our mobile application, or accessing any digital learning batches, course materials, video lectures, and mock test series, you agree to be bound by the following legally binding terms and conditions.
+            Welcome to EDURAIN. By creating an account, downloading our mobile application, or accessing any learning batches, study materials, live classes, and mock test series, you agree to be bound by the following legally binding terms and conditions.
           </Text>
         </View>
 
@@ -82,7 +82,7 @@ export default function TermsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>3. Course Access, Digital Content & Intellectual Property</Text>
           <Text style={styles.paragraph}>
-            All video lectures, PDF notes, test papers, question banks, study materials, and trademarks displayed on EDURAIN are the exclusive intellectual property of EDURAIN India. You are granted a limited, non-exclusive, non-transferable revocable license for personal, non-commercial educational study only. Screen recording, unauthorized ripping, capturing, or redistribution across social channels is strictly prohibited and subject to legal prosecution under the Indian Copyright Act, 1957.
+            All PDF notes, test papers, question banks, study materials, and trademarks displayed on EDURAIN are the exclusive intellectual property of EDURAIN India. You are granted a limited, non-exclusive, non-transferable revocable license for personal, non-commercial educational study only. Screen recording, unauthorized ripping, capturing, or redistribution across social channels is strictly prohibited and subject to legal prosecution under the Indian Copyright Act, 1957.
           </Text>
         </View>
 
@@ -90,7 +90,7 @@ export default function TermsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>4. Fees, In-App Purchases, Billing & Non-Refundable Policy</Text>
           <Text style={styles.paragraph}>
-            Batch enrollments and digital test passes purchased on iOS are processed securely via Apple App Store In-App Purchases, and on Android via Google Play Billing or Reserve Bank of India (RBI) compliant payment gateways. Because instant digital access to copyrighted lectures, live test keys, and proprietary study materials is unlocked immediately upon transaction confirmation, all course and subscription purchases are strictly final and non-refundable.
+            Batch enrollment payments are processed securely by Reserve Bank of India (RBI) authorised payment gateways (Razorpay). Because instant access to copyrighted study material, live test keys, and proprietary study materials is unlocked immediately upon transaction confirmation, all course and subscription purchases are strictly final and non-refundable.
           </Text>
         </View>
 

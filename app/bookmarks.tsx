@@ -91,7 +91,7 @@ export default function BookmarksScreen() {
   const handleClearAllHistory = () => {
     Alert.alert(
       'Clear History',
-      'Are you sure you want to clear your video watch history?',
+      'Are you sure you want to clear your study history?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -183,7 +183,7 @@ export default function BookmarksScreen() {
           <View style={styles.heroContent}>
             <Text style={styles.heroTitle}>Bookmark</Text>
             <Text style={styles.heroSubtitle}>
-              Your saved revision videos, bookmarked e-books, and study material
+              Your saved study material, bookmarked e-books and notes
             </Text>
           </View>
         </View>
@@ -286,7 +286,7 @@ export default function BookmarksScreen() {
               No watch history in the last 5 days
             </Text>
             <Text style={styles.emptySubtitle}>
-              Lectures you watch in Class Material will appear here automatically.
+              Material you open in Class Material will appear here automatically.
             </Text>
           </View>
         ) : (
@@ -334,7 +334,7 @@ export default function BookmarksScreen() {
                     })
                   }
                 >
-                  <Text style={styles.watchNowBtnText}>Watch Now →</Text>
+                  <Text style={styles.watchNowBtnText}>Open →</Text>
                 </TouchableOpacity>
               </View>
             </View>

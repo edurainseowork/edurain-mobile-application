@@ -16,6 +16,8 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#0B3B42',
+        // Same width as when there were 4 tabs; the two tabs sit on the left
+        tabBarItemStyle: { flex: 0, width: '25%' },
         tabBarInactiveTintColor: '#64748B',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',

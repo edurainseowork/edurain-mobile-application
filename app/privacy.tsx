@@ -68,7 +68,7 @@ export default function PrivacyScreen() {
           <Text style={styles.paragraph}>
             We collect only the minimum data essential to provide our educational services:
             {'\n'}• <Text style={styles.boldText}>Identity & Contact Data:</Text> Student name, mobile phone number, email address, and academic target (e.g. NEET, JEE, Foundation).
-            {'\n'}• <Text style={styles.boldText}>Academic Telemetry:</Text> Quiz scores, mock test submissions, video progress, doubt tickets, and enrolled batches.
+            {'\n'}• <Text style={styles.boldText}>Academic Telemetry:</Text> Quiz scores, mock test submissions, study material progress, doubt tickets, and enrolled batches.
             {'\n'}• <Text style={styles.boldText}>Device & Session Diagnostics:</Text> Operating system version, device model, IP address, and single-session authentication tokens for account security.
             {'\n'}• <Text style={styles.boldText}>Billing Records:</Text> Transaction identifiers, timestamps, and course receipts. EDURAIN does not store complete credit card or debit card credentials on its servers.
           </Text>
@@ -80,7 +80,7 @@ export default function PrivacyScreen() {
           <Text style={styles.paragraph}>
             We process personal data based on contractual necessity to fulfill educational delivery and user consent:
             {'\n'}• Authenticating student access and preventing credential leakage.
-            {'\n'}• Streaming online lectures and distributing batch notes and test papers.
+            {'\n'}• Providing study material, live classes, batch notes and test papers.
             {'\n'}• Generating personalized AI diagnostic reports, rank benchmarks, and syllabus progress.
             {'\n'}• Transmitting service notifications regarding live classes, test unlock dates, and doubt answers.
           </Text>
@@ -93,7 +93,7 @@ export default function PrivacyScreen() {
             Our mobile application may request the following native permissions on an opt-in, runtime basis:
             {'\n'}• <Text style={styles.boldText}>Camera (NSCameraUsageDescription):</Text> Used strictly when the student taps the camera option in "Ask Your Doubt" to snap a photo of a textbook question or problem, or to take a profile avatar.
             {'\n'}• <Text style={styles.boldText}>Photo Library (NSPhotoLibraryUsageDescription):</Text> Used solely to select an existing question diagram or picture for doubt submission or avatar customization.
-            {'\n'}• <Text style={styles.boldText}>Push Notifications (POST_NOTIFICATIONS):</Text> Used to alert you of scheduled live lectures, upcoming test reminders, and mentor responses.
+            {'\n'}• <Text style={styles.boldText}>Push Notifications (POST_NOTIFICATIONS):</Text> Used to alert you of scheduled live classes, upcoming test reminders, and mentor responses.
             {'\n\n'}We never access your media gallery, camera, or background location without explicit, voluntary student interaction.
           </Text>
         </View>
@@ -102,7 +102,7 @@ export default function PrivacyScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionHeading}>4. In-App Purchases & Financial Privacy</Text>
           <Text style={styles.paragraph}>
-            On iOS, in-app purchases are executed securely through Apple App Store In-App Purchases subject to Apple's Privacy Policy. On Android, transactions are facilitated via Google Play Billing and PCI-DSS compliant payment gateways. Sensitive banking or card details are never processed or retained on EDURAIN infrastructure.
+            Payments are processed by RBI-authorised, PCI-DSS compliant payment gateways (Razorpay). Sensitive banking or card details are never processed or retained on EDURAIN infrastructure.
           </Text>
         </View>
 

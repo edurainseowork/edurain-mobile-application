@@ -236,7 +236,7 @@ export default function ClassMaterialScreen() {
         url: item.mediaUrl,
       });
     } else {
-      Alert.alert('Lecture Video', `${item.title}\n\nLecture recording will be available shortly.`);
+      Alert.alert('Study Material', `${item.title}\n\nThis material is not available yet.`);
     }
   };
 
@@ -392,7 +392,7 @@ export default function ClassMaterialScreen() {
                   selectedFilter === 'video' && styles.filterPillTextActive,
                 ]}
               >
-                Lectures ({summaryCounts.lectures})
+                Materials ({summaryCounts.lectures})
               </Text>
             </TouchableOpacity>
           </View>
@@ -417,11 +417,11 @@ export default function ClassMaterialScreen() {
               <Text style={styles.emptyCardTitle}>No Class Material Published Yet</Text>
 
               <Text style={styles.emptyCardSub}>
-                PDF notes and recorded lectures for this course will appear here as soon as your teachers add them.
+                PDF notes and study material for this course will appear here as soon as your teachers add them.
               </Text>
 
               <View style={styles.emptyPill}>
-                <Text style={styles.emptyPillText}>PDF Notes  •  Recorded Lectures</Text>
+                <Text style={styles.emptyPillText}>PDF Notes  •  Study Material</Text>
               </View>
             </View>
           </View>
@@ -522,7 +522,7 @@ export default function ClassMaterialScreen() {
                     </View>
                     <View style={styles.videoBadgePill}>
                       <Feather name="play" size={10} color="#059669" style={{ marginRight: 3 }} />
-                      <Text style={styles.videoBadgePillText}>Lecture</Text>
+                      <Text style={styles.videoBadgePillText}>Material</Text>
                     </View>
                   </View>
 
@@ -541,7 +541,7 @@ export default function ClassMaterialScreen() {
                       activeOpacity={0.8}
                     >
                       <Feather name="play" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.longTilePrimaryBtnText}>Watch Lecture</Text>
+                      <Text style={styles.longTilePrimaryBtnText}>Open Material</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -657,7 +657,7 @@ export default function ClassMaterialScreen() {
                     </View>
                     <View style={styles.videoBadgePill}>
                       <Feather name="play" size={9} color="#059669" style={{ marginRight: 2 }} />
-                      <Text style={styles.videoBadgePillText}>Lecture</Text>
+                      <Text style={styles.videoBadgePillText}>Material</Text>
                     </View>
                   </View>
 
@@ -675,7 +675,7 @@ export default function ClassMaterialScreen() {
                     activeOpacity={0.8}
                   >
                     <Feather name="play" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-                    <Text style={styles.watchLectureBtnText}>Watch Lecture</Text>
+                    <Text style={styles.watchLectureBtnText}>Open Material</Text>
                   </TouchableOpacity>
                 </View>
               );
