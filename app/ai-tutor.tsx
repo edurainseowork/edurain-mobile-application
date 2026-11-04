@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +17,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/theme';
 import { AppHeader } from '../components/Home/AppHeader';
-import { askEduAi, fetchAiQuota, AiChatMessage, QuotaStatus } from '../api/doubts';
+import { askEduAi, fetchAiQuota, reportAiAnswer, AiChatMessage, QuotaStatus } from '../api/doubts';
 import { LockedFeatureGuard } from '../components/LockedFeatureGuard';
 import { FormattedAiMessage } from '../components/FormattedAiMessage';
 
@@ -52,6 +53,27 @@ export default function AiTutorScreen() {
   const [loading, setLoading] = useState(false);
   // null until the server answers, so a wrong "30" never flashes on screen
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
+  const [reportedIds, setReportedIds] = useState<string[]>([]);
+
+  // Report an AI answer from inside the chat (required for apps with AI-generated content)
+  const handleReport = (index: number) => {
+    const answer = messages[index];
+    const prompt = [...messages.slice(0, index)].reverse().find((x) => x.sender === 'user')?.content;
+    const send = async (reason: 'wrong' | 'offensive') => {
+      try {
+        await reportAiAnswer({ reason, answer: answer.content, prompt });
+        setReportedIds((ids) => [...ids, answer.id]);
+        Alert.alert('Thanks for reporting', 'Our team will review this answer.');
+      } catch (err: any) {
+        Alert.alert('Could not send report', err?.message || 'Please try again.');
+      }
+    };
+    Alert.alert('Report this answer', 'What is wrong with this answer?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Wrong answer', onPress: () => send('wrong') },
+      { text: 'Offensive / harmful', style: 'destructive', onPress: () => send('offensive') },
+    ]);
+  };
   const refreshQuota = () => fetchAiQuota().then((q) => q && setQuota(q)).catch(() => {});
 
   useEffect(() => {
@@ -179,8 +201,10 @@ export default function AiTutorScreen() {
           contentContainerStyle={[styles.chatContent, { paddingBottom: 20 }]}
           showsVerticalScrollIndicator={false}
         >
-          {messages.map((m) => {
+          {messages.map((m, index) => {
             const isMe = m.sender === 'user';
+            const canReport = !isMe && m.id !== 'welcome_1';
+            const reported = reportedIds.includes(m.id);
             return (
               <View
                 key={m.id}
@@ -197,9 +221,25 @@ export default function AiTutorScreen() {
                 ) : (
                   <FormattedAiMessage content={m.content} />
                 )}
-                <Text style={[styles.bubbleTime, isMe ? styles.userTime : styles.aiTime]}>
-                  {m.timestamp}
-                </Text>
+                <View style={styles.bubbleFooter}>
+                  {canReport && (
+                    <TouchableOpacity
+                      onPress={() => handleReport(index)}
+                      disabled={reported}
+                      hitSlop={8}
+                      style={styles.reportBtn}
+                      accessibilityLabel="Report this answer"
+                    >
+                      <Feather name="flag" size={11} color={reported ? '#94A3B8' : '#B45309'} />
+                      <Text style={[styles.reportText, reported && styles.reportTextDone]}>
+                        {reported ? 'Reported' : 'Report'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text style={[styles.bubbleTime, isMe ? styles.userTime : styles.aiTime]}>
+                    {m.timestamp}
+                  </Text>
+                </View>
               </View>
             );
           })}
@@ -433,6 +473,27 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
   },
   aiTime: {
+    color: '#94A3B8',
+  },
+  bubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  reportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    marginRight: 'auto',
+  },
+  reportText: {
+    fontSize: 11,
+    color: '#B45309',
+    fontFamily: Theme.fonts.medium,
+  },
+  reportTextDone: {
     color: '#94A3B8',
   },
   loadingBubble: {

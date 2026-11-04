@@ -241,6 +241,14 @@ export async function askEduAi(prompt: string, cohort?: string): Promise<{ text:
   }
 }
 
+/**
+ * Flags an EduAI answer as wrong or offensive (Play Store / App Store rule for AI apps).
+ * The team reviews every report. Throws with the server's message on failure.
+ */
+export async function reportAiAnswer(params: { reason: 'wrong' | 'offensive'; answer: string; prompt?: string }): Promise<void> {
+  await apiFetch('/api/ai/doubt/report', { method: 'POST', body: JSON.stringify(params) });
+}
+
 /** Today's count from the server (it sends { success, data: {...} }). Null if it could not be read. */
 export async function fetchAiQuota(): Promise<QuotaStatus | null> {
   try {
