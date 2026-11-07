@@ -1,3 +1,2 @@
-// iOS: in-app screen (components/Legal/PrivacyScreen.ios.tsx). Android: opens the website.
-// Kept outside app/ so the iOS text is not bundled into the Android build.
+// In-app screen on Android and iOS (components/Legal/PrivacyScreen.tsx).
 export { default } from '../components/Legal/PrivacyScreen';

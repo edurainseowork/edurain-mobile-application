@@ -1,13 +1,6 @@
-import { useEffect } from 'react';
-import { router } from 'expo-router';
-import { openPolicy } from '../../services/policyLinks';
+import LegalDocument from './LegalDocument';
+import { TERMS_DOC } from '../../constants/legalContent';
 
-// Android (and web): this screen opens the policy on the website, then goes back.
-export default function PolicyRedirect() {
-  useEffect(() => {
-    openPolicy('terms');
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
-  }, []);
-  return null;
+export default function TermsScreen() {
+  return <LegalDocument doc={TERMS_DOC} headerTitle="Terms & Conditions" />;
 }

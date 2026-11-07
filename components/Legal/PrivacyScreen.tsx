@@ -1,13 +1,6 @@
-import { useEffect } from 'react';
-import { router } from 'expo-router';
-import { openPolicy } from '../../services/policyLinks';
+import LegalDocument from './LegalDocument';
+import { PRIVACY_DOC } from '../../constants/legalContent';
 
-// Android (and web): this screen opens the policy on the website, then goes back.
-export default function PolicyRedirect() {
-  useEffect(() => {
-    openPolicy('privacy');
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
-  }, []);
-  return null;
+export default function PrivacyScreen() {
+  return <LegalDocument doc={PRIVACY_DOC} headerTitle="Privacy Policy" />;
 }
